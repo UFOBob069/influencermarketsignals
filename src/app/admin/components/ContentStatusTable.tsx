@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 
@@ -117,7 +117,8 @@ function CopyTweetThreadButton({ tweetThread }: { tweetThread: string }) {
       await navigator.clipboard.writeText(tweetThread);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to copy tweet thread:', error);
       alert('Failed to copy!');
     }
   };
@@ -138,7 +139,8 @@ function CopyVideoScriptButton({ videoScript }: { videoScript: string }) {
       await navigator.clipboard.writeText(videoScript);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to copy video script:', error);
       alert('Failed to copy!');
     }
   };

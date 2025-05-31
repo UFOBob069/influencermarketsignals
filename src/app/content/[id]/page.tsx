@@ -117,7 +117,7 @@ export default function ContentPage() {
                   {content.notableTimestamps.split('\n').map((line, idx) => {
                     const match = line.match(/\*\*\[(\d{2}):(\d{2})\]\*\*\s*—\s*(.*)/)
                     if (!match) return null
-                    const [_, mm, ss, desc] = match
+                    const [, mm, ss, desc] = match
                     const seconds = parseInt(mm, 10) * 60 + parseInt(ss, 10)
                     const url = `https://www.youtube.com/watch?v=${content.videoId}&t=${seconds}s`
                     return (
