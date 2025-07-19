@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebase'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
-import { getSubtitles } from 'youtube-captions-scraper'
 import OpenAI from 'openai'
-
-// Type declaration for the transcript segment
-interface TranscriptSegment {
-  text: string;
-  start: number;
-  duration: number;
-}
 
 // Check if OpenAI API key is available
 if (!process.env.OPENAI_API_KEY) {
@@ -19,51 +11,6 @@ if (!process.env.OPENAI_API_KEY) {
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
-
-async function getYouTubeTranscript(videoId: string): Promise<string> {
-  try {
-    console.log('Fetching transcript for video:', videoId)
-    
-    // Try to get transcript with the new library
-    const transcript = await getSubtitles({
-      videoID: videoId,
-      lang: 'en' // try English first
-    }) as TranscriptSegment[]
-    
-    console.log('Transcript segments found:', transcript.length)
-    
-    if (!transcript || transcript.length === 0) {
-      // Try without language specification
-      console.log('Trying without language specification...')
-      const transcriptNoLang = await getSubtitles({
-        videoID: videoId
-      }) as TranscriptSegment[]
-      console.log('Transcript without lang segments found:', transcriptNoLang.length)
-      
-      if (!transcriptNoLang || transcriptNoLang.length === 0) {
-        throw new Error(`No transcript available for this video. Please check if the video has captions enabled at: https://www.youtube.com/watch?v=${videoId}`)
-      }
-      
-      // Combine all transcript segments into one text
-      const transcriptText = transcriptNoLang.map((segment: TranscriptSegment) => segment.text).join(' ')
-      console.log('Final transcript length:', transcriptText.length)
-      console.log('First 200 characters:', transcriptText.slice(0, 200))
-      
-      return transcriptText
-    }
-    
-    // Combine all transcript segments into one text
-    const transcriptText = transcript.map((segment: TranscriptSegment) => segment.text).join(' ')
-    console.log('Final transcript length:', transcriptText.length)
-    console.log('First 200 characters:', transcriptText.slice(0, 200))
-    
-    return transcriptText
-    
-  } catch (error) {
-    console.error('Error in getYouTubeTranscript:', error)
-    throw error
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -108,25 +55,16 @@ export async function POST(request: Request) {
     console.log('Clean video ID:', cleanVideoId)
     
     try {
-      // Get transcript
-      console.log('Fetching YouTube transcript for videoId:', cleanVideoId)
-      console.log('Full video URL:', `https://www.youtube.com/watch?v=${cleanVideoId}`)
+      // Use the manually provided transcript
+      let transcriptText = content.transcript
       
-      // Get transcript text
-      let transcriptText
-      try {
-        transcriptText = await getYouTubeTranscript(cleanVideoId)
-        console.log('Transcript text (first 500 chars):', transcriptText.slice(0, 500));
-        console.log('Transcript length:', transcriptText.length);
-        console.log('Transcript fetched successfully')
-
-        if (!transcriptText || transcriptText.length === 0) {
-          throw new Error('No transcript data received from YouTube. This video may not have captions/transcripts available.')
-        }
-      } catch (transcriptError) {
-        console.error('Error fetching transcript:', transcriptError)
-        throw new Error(`Failed to fetch transcript: ${transcriptError instanceof Error ? transcriptError.message : 'Unknown error'}`)
+      if (!transcriptText || transcriptText.trim().length === 0) {
+        throw new Error('No transcript provided in content. Please paste the transcript manually.')
       }
+      
+      console.log('Using manually provided transcript')
+      console.log('Transcript length:', transcriptText.length)
+      console.log('Transcript preview (first 500 chars):', transcriptText.slice(0, 500))
 
       if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY environment variable is not set')
@@ -289,4 +227,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-} 
+}

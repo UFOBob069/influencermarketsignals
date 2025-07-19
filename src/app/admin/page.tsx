@@ -10,6 +10,7 @@ import { collection, addDoc } from 'firebase/firestore'
 export default function AdminPage() {
   const { user, signOut, error } = useAuth()
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [transcript, setTranscript] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [formError, setFormError] = useState('')
   const [processingStatus, setProcessingStatus] = useState('')
@@ -27,11 +28,16 @@ export default function AdminPage() {
         throw new Error('Invalid YouTube URL')
       }
 
+      if (!transcript.trim()) {
+        throw new Error('Transcript is required')
+      }
+
       setProcessingStatus('Adding content to Firestore...')
       // Add to Firestore
       const docRef = await addDoc(collection(db, 'content'), {
         youtubeUrl,
         videoId,
+        transcript: transcript.trim(),
         status: 'pending',
         createdAt: new Date().toISOString(),
       })
@@ -47,6 +53,7 @@ export default function AdminPage() {
       setProcessingStatus('Content processing started successfully')
       setStatus('success')
       setYoutubeUrl('')
+      setTranscript('')
     } catch (err) {
       setStatus('error')
       setFormError(err instanceof Error ? err.message : 'An error occurred')
@@ -114,6 +121,23 @@ export default function AdminPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
+              </div>
+              <div>
+                <label htmlFor="transcript" className="block text-sm font-medium text-gray-700 mb-1">
+                  Transcript (paste the full transcript here)
+                </label>
+                <textarea
+                  id="transcript"
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  placeholder="Paste the full transcript from the YouTube video here..."
+                  rows={8}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Copy the transcript from YouTube's transcript feature and paste it here
+                </p>
               </div>
               <button
                 type="submit"
