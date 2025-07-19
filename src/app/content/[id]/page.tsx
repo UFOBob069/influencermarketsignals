@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { db } from '@/lib/firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { FaTwitter, FaArrowLeft } from 'react-icons/fa'
+import { FaTwitter, FaArrowLeft, FaClock, FaChartLine, FaQuoteLeft, FaUser } from 'react-icons/fa'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Content {
   id: string
@@ -63,7 +65,7 @@ export default function ContentPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <div className="container mx-auto px-4 py-12 max-w-4xl">
         <div className="flex items-center justify-between mb-8">
           <Link
             href="/"
@@ -104,16 +106,65 @@ export default function ContentPage() {
             </p>
 
             {/* Blog Article */}
-            <section className="prose max-w-none mb-12 prose-blue prose-lg">
-              <h2 className="text-2xl font-bold mb-4 text-blue-700 border-b-2 border-blue-100 pb-2">Full Article</h2>
-              <div className="whitespace-pre-line">{content.blogArticle}</div>
+            <section className="mb-12">
+              <div className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-headings:font-bold prose-h2:text-3xl prose-h2:mb-6 prose-h2:mt-8 prose-h3:text-xl prose-h3:mb-4 prose-h3:mt-6 prose-h3:text-blue-700 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-ul:my-4 prose-li:text-gray-700 prose-li:mb-2 prose-strong:text-gray-900 prose-strong:font-semibold prose-blockquote:border-l-4 prose-blockquote:border-blue-200 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-gray-600">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h2: ({children}) => (
+                      <h2 className="flex items-center text-3xl font-bold text-gray-900 mb-6 mt-8 border-b-2 border-blue-100 pb-2">
+                        <FaChartLine className="mr-3 text-blue-600" />
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({children}) => (
+                      <h3 className="flex items-center text-xl font-semibold text-blue-700 mb-4 mt-6">
+                        <FaUser className="mr-2 text-blue-500" />
+                        {children}
+                      </h3>
+                    ),
+                    ul: ({children}) => (
+                      <ul className="space-y-3 my-6 pl-6">
+                        {children}
+                      </ul>
+                    ),
+                    li: ({children}) => (
+                      <li className="text-gray-700 leading-relaxed flex items-start">
+                        <span className="text-blue-500 mr-2 mt-2">•</span>
+                        <span>{children}</span>
+                      </li>
+                    ),
+                    strong: ({children}) => (
+                      <strong className="font-semibold text-gray-900 bg-yellow-50 px-1 rounded">
+                        {children}
+                      </strong>
+                    ),
+                    blockquote: ({children}) => (
+                      <blockquote className="border-l-4 border-blue-200 pl-4 italic text-gray-600 bg-blue-50 py-2 rounded-r">
+                        <FaQuoteLeft className="inline mr-2 text-blue-400" />
+                        {children}
+                      </blockquote>
+                    ),
+                    p: ({children}) => (
+                      <p className="text-gray-700 leading-relaxed mb-4">
+                        {children}
+                      </p>
+                    )
+                  }}
+                >
+                  {content.blogArticle}
+                </ReactMarkdown>
+              </div>
             </section>
 
             {/* Notable Timestamps */}
             {content.notableTimestamps && (
               <section className="mb-12">
-                <h2 className="text-2xl font-bold mb-4 text-indigo-700 border-b-2 border-indigo-100 pb-2">Notable Timestamps</h2>
-                <ul className="space-y-3">
+                <h2 className="flex items-center text-2xl font-bold mb-6 text-indigo-700 border-b-2 border-indigo-100 pb-2">
+                  <FaClock className="mr-3 text-indigo-600" />
+                  Notable Timestamps
+                </h2>
+                <div className="grid gap-3">
                   {content.notableTimestamps.split('\n').map((line, idx) => {
                     const match = line.match(/\*\*\[(\d{2}):(\d{2})\]\*\*\s*—\s*(.*)/)
                     if (!match) return null
@@ -121,20 +172,20 @@ export default function ContentPage() {
                     const seconds = parseInt(mm, 10) * 60 + parseInt(ss, 10)
                     const url = `https://www.youtube.com/watch?v=${content.videoId}&t=${seconds}s`
                     return (
-                      <li key={idx} className="flex items-center gap-3">
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                         <a
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline font-mono font-semibold bg-indigo-50 px-2 py-1 rounded"
+                          className="text-indigo-600 hover:text-indigo-800 font-mono font-semibold bg-indigo-100 px-3 py-1 rounded-md hover:bg-indigo-200 transition"
                         >
                           [{mm}:{ss}]
                         </a>
-                        <span className="ml-2 text-gray-700">— {desc}</span>
-                      </li>
+                        <span className="text-gray-700 flex-1">{desc}</span>
+                      </div>
                     )
                   })}
-                </ul>
+                </div>
               </section>
             )}
 
