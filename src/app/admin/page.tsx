@@ -136,7 +136,7 @@ export default function AdminPage() {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Copy the transcript from YouTube's transcript feature and paste it here
+                  Copy the transcript from YouTube&apos;s transcript feature and paste it here
                 </p>
               </div>
               <button

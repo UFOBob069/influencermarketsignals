@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     
     try {
       // Use the manually provided transcript
-      let transcriptText = content.transcript
+      const transcriptText = content.transcript
       
       if (!transcriptText || transcriptText.trim().length === 0) {
         throw new Error('No transcript provided in content. Please paste the transcript manually.')

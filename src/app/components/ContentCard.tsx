@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FaLink, FaChartLine, FaUser } from 'react-icons/fa'
+import { FaLink, FaChartLine } from 'react-icons/fa'
 
 interface ContentCardProps {
   id: string
