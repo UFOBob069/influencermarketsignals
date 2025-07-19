@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebase'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
-import { YoutubeTranscript } from 'youtube-transcript'
+import { getSubtitles } from 'youtube-captions-scraper'
 import OpenAI from 'openai'
+
+// Type declaration for the transcript segment
+interface TranscriptSegment {
+  text: string;
+  start: number;
+  duration: number;
+}
 
 // Check if OpenAI API key is available
 if (!process.env.OPENAI_API_KEY) {
@@ -17,44 +24,36 @@ async function getYouTubeTranscript(videoId: string): Promise<string> {
   try {
     console.log('Fetching transcript for video:', videoId)
     
-    // Try to get transcript with default settings
-    let transcript = await YoutubeTranscript.fetchTranscript(videoId)
+    // Try to get transcript with the new library
+    const transcript = await getSubtitles({
+      videoID: videoId,
+      lang: 'en' // try English first
+    }) as TranscriptSegment[]
+    
     console.log('Transcript segments found:', transcript.length)
     
     if (!transcript || transcript.length === 0) {
-      // Try with language specification
-      console.log('Trying with lang=en...')
-      transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'en' })
-      console.log('Transcript with lang=en segments found:', transcript.length)
-    }
-    
-    if (!transcript || transcript.length === 0) {
-      // Try without any language specification
-      console.log('Trying with no language specification...')
-      transcript = await YoutubeTranscript.fetchTranscript(videoId, {})
-      console.log('Transcript with no lang segments found:', transcript.length)
-    }
-    
-    if (!transcript || transcript.length === 0) {
-      // Try to get available languages
-      console.log('Trying to get available languages...')
-      try {
-        const languages = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'auto' })
-        console.log('Available languages result:', languages)
-      } catch (langError) {
-        console.log('Language detection failed:', langError)
+      // Try without language specification
+      console.log('Trying without language specification...')
+      const transcriptNoLang = await getSubtitles({
+        videoID: videoId
+      }) as TranscriptSegment[]
+      console.log('Transcript without lang segments found:', transcriptNoLang.length)
+      
+      if (!transcriptNoLang || transcriptNoLang.length === 0) {
+        throw new Error(`No transcript available for this video. Please check if the video has captions enabled at: https://www.youtube.com/watch?v=${videoId}`)
       }
       
-      // Try a different approach - check if video exists
-      console.log('Checking if video exists and has captions...')
-      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
-      console.log('Video URL:', videoUrl)
+      // Combine all transcript segments into one text
+      const transcriptText = transcriptNoLang.map((segment: TranscriptSegment) => segment.text).join(' ')
+      console.log('Final transcript length:', transcriptText.length)
+      console.log('First 200 characters:', transcriptText.slice(0, 200))
       
-      throw new Error(`No transcript available for this video. Please check if the video has captions enabled at: ${videoUrl}`)
+      return transcriptText
     }
     
     // Combine all transcript segments into one text
-    const transcriptText = transcript.map(segment => segment.text).join(' ')
+    const transcriptText = transcript.map((segment: TranscriptSegment) => segment.text).join(' ')
     console.log('Final transcript length:', transcriptText.length)
     console.log('First 200 characters:', transcriptText.slice(0, 200))
     
