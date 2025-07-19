@@ -23,23 +23,40 @@ async function getYouTubeTranscript(videoId: string): Promise<string> {
     
     if (!transcript || transcript.length === 0) {
       // Try with language specification
+      console.log('Trying with lang=en...')
       transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'en' })
       console.log('Transcript with lang=en segments found:', transcript.length)
     }
     
     if (!transcript || transcript.length === 0) {
       // Try without any language specification
+      console.log('Trying with no language specification...')
       transcript = await YoutubeTranscript.fetchTranscript(videoId, {})
       console.log('Transcript with no lang segments found:', transcript.length)
     }
     
     if (!transcript || transcript.length === 0) {
-      throw new Error('No transcript available for this video')
+      // Try to get available languages
+      console.log('Trying to get available languages...')
+      try {
+        const languages = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'auto' })
+        console.log('Available languages result:', languages)
+      } catch (langError) {
+        console.log('Language detection failed:', langError)
+      }
+      
+      // Try a different approach - check if video exists
+      console.log('Checking if video exists and has captions...')
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
+      console.log('Video URL:', videoUrl)
+      
+      throw new Error(`No transcript available for this video. Please check if the video has captions enabled at: ${videoUrl}`)
     }
     
     // Combine all transcript segments into one text
     const transcriptText = transcript.map(segment => segment.text).join(' ')
     console.log('Final transcript length:', transcriptText.length)
+    console.log('First 200 characters:', transcriptText.slice(0, 200))
     
     return transcriptText
     
