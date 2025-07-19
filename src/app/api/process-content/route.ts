@@ -90,13 +90,14 @@ export async function POST(request: Request) {
             content: `You are summarizing the literal content of a finance podcast in a 6–10 tweet thread for readers who want a straight recap.
           
           Instructions:
-          - Begin with: "Here's what was actually said on [Podcast Name] this week 👇"
+          - Begin with: A viral hook from the podcast, your goal is to make the tweet thread go viral
           - Each tweet should contain a specific detail, quote, or topic discussed — NOT general summaries.
           - Use names, tickers, statements made, questions debated — all from the transcript.
           - Include 1–2 direct quotes where impactful.
           - Do not add interpretation, opinion, or conclusions.
           - Final tweet should include: "🎧 Full episode: [link] — Follow @MarketPodDigest for more straight podcast recaps."
-          
+          - Make sure the tweet thread goes viral
+
           Each tweet should feel like someone is taking notes in real time, not rewriting it into blog-speak or commentary. Just the facts. Each tweet should be 280 characters or less.`
           },
           {
