@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebase'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
+import { YoutubeTranscript } from 'youtube-transcript'
 import OpenAI from 'openai'
 
 // Check if OpenAI API key is available
@@ -8,117 +9,42 @@ if (!process.env.OPENAI_API_KEY) {
   console.error('OPENAI_API_KEY is not set in environment variables')
 }
 
-// Check if YouTube API key is available
-if (!process.env.YOUTUBE_API_KEY) {
-  console.error('YOUTUBE_API_KEY is not set in environment variables')
-}
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
 async function getYouTubeTranscript(videoId: string): Promise<string> {
-  if (!process.env.YOUTUBE_API_KEY) {
-    throw new Error('YOUTUBE_API_KEY environment variable is not set')
-  }
-
   try {
-    // First, get the video details to check if captions are available
-    const videoResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoId}&key=${process.env.YOUTUBE_API_KEY}`
-    )
+    console.log('Fetching transcript for video:', videoId)
     
-    if (!videoResponse.ok) {
-      throw new Error(`YouTube API error: ${videoResponse.status}`)
+    // Try to get transcript with default settings
+    let transcript = await YoutubeTranscript.fetchTranscript(videoId)
+    console.log('Transcript segments found:', transcript.length)
+    
+    if (!transcript || transcript.length === 0) {
+      // Try with language specification
+      transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'en' })
+      console.log('Transcript with lang=en segments found:', transcript.length)
     }
     
-    const videoData = await videoResponse.json()
-    console.log('Video data from YouTube API:', videoData)
-    
-    if (!videoData.items || videoData.items.length === 0) {
-      throw new Error('Video not found')
+    if (!transcript || transcript.length === 0) {
+      // Try without any language specification
+      transcript = await YoutubeTranscript.fetchTranscript(videoId, {})
+      console.log('Transcript with no lang segments found:', transcript.length)
     }
     
-    // Get captions/tracks
-    const captionsResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}&key=${process.env.YOUTUBE_API_KEY}`
-    )
-    
-    if (!captionsResponse.ok) {
-      throw new Error(`Captions API error: ${captionsResponse.status}`)
+    if (!transcript || transcript.length === 0) {
+      throw new Error('No transcript available for this video')
     }
     
-    const captionsData = await captionsResponse.json()
-    console.log('Captions data:', captionsData)
+    // Combine all transcript segments into one text
+    const transcriptText = transcript.map(segment => segment.text).join(' ')
+    console.log('Final transcript length:', transcriptText.length)
     
-    if (!captionsData.items || captionsData.items.length === 0) {
-      throw new Error('No captions available for this video')
-    }
-    
-    // Get the caption track ID
-    const captionId = captionsData.items[0].id
-    console.log('Caption ID:', captionId)
-    
-    // Download the actual transcript
-    const transcriptResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/captions/${captionId}?key=${process.env.YOUTUBE_API_KEY}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.YOUTUBE_API_KEY}`, // This might need OAuth2
-        }
-      }
-    )
-    
-    if (!transcriptResponse.ok) {
-      console.log('Direct caption download failed, trying alternative method...')
-      
-      // Alternative: Use a different approach to get transcripts
-      // For now, let's use a simple web scraping approach
-      const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`)
-      const pageHtml = await pageResponse.text()
-      
-      // Look for transcript data in the page
-      const transcriptMatch = pageHtml.match(/"captions":\s*({[^}]+})/)
-      if (transcriptMatch) {
-        console.log('Found transcript data in page')
-        
-        // Try to extract the actual transcript text
-        // This is a simplified approach - we'll use a more reliable method
-        const transcriptDataMatch = pageHtml.match(/"transcriptRenderer":\s*({[^}]+})/)
-        if (transcriptDataMatch) {
-          console.log('Found transcript renderer data')
-          // For now, let's use a different approach
-        }
-        
-        // Use a more direct approach - fetch the transcript endpoint
-        const transcriptUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=en`
-        const directTranscriptResponse = await fetch(transcriptUrl)
-        
-        if (directTranscriptResponse.ok) {
-          const transcriptXml = await directTranscriptResponse.text()
-          console.log('Direct transcript XML:', transcriptXml.slice(0, 500))
-          
-          // Parse the XML to extract text
-          const textMatches = transcriptXml.match(/<text[^>]*>([^<]+)<\/text>/g)
-          if (textMatches) {
-            const transcriptText = textMatches
-              .map(match => match.replace(/<text[^>]*>([^<]+)<\/text>/, '$1'))
-              .join(' ')
-            console.log('Extracted transcript text length:', transcriptText.length)
-            return transcriptText
-          }
-        }
-      }
-      
-      throw new Error('Could not extract transcript from video')
-    }
-    
-    const transcriptData = await transcriptResponse.text()
-    console.log('Transcript data:', transcriptData.slice(0, 500))
-    return transcriptData
+    return transcriptText
     
   } catch (error) {
-    console.error('Error fetching transcript:', error)
+    console.error('Error in getYouTubeTranscript:', error)
     throw error
   }
 }
