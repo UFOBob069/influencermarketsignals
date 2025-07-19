@@ -4,6 +4,11 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import { YoutubeTranscript } from 'youtube-transcript'
 import OpenAI from 'openai'
 
+// Check if OpenAI API key is available
+if (!process.env.OPENAI_API_KEY) {
+  console.error('OPENAI_API_KEY is not set in environment variables')
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
@@ -11,8 +16,15 @@ const openai = new OpenAI({
 export async function POST(request: Request) {
   try {
     console.log('Starting content processing...')
+    console.log('Environment check - OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
+    
     const { contentId } = await request.json()
     console.log('Processing content ID:', contentId)
+
+    if (!contentId) {
+      console.error('No contentId provided in request')
+      return NextResponse.json({ error: 'contentId is required' }, { status: 400 })
+    }
 
     // Get content document
     const contentRef = doc(db, 'content', contentId)
@@ -26,19 +38,28 @@ export async function POST(request: Request) {
     const content = contentDoc.data()
     console.log('Content data:', content)
     
+    if (!content.videoId) {
+      console.error('No videoId found in content:', content)
+      return NextResponse.json({ error: 'No videoId found in content' }, { status: 400 })
+    }
+    
     try {
       // Get transcript
-      console.log('Fetching YouTube transcript...')
+      console.log('Fetching YouTube transcript for videoId:', content.videoId)
       const transcript = await YoutubeTranscript.fetchTranscript(content.videoId)
       const transcriptText = transcript.map(t => t.text).join(' ')
       console.log('Transcript text (first 500 chars):', transcriptText.slice(0, 500));
       console.log('Transcript length:', transcriptText.length);
       console.log('Transcript fetched successfully')
 
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY environment variable is not set')
+      }
+
       // Generate blog article
       console.log('Generating blog article...')
       const blogArticle = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -83,7 +104,7 @@ export async function POST(request: Request) {
       // Generate tweet thread
       console.log('Generating tweet thread...')
       const tweetThread = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -112,7 +133,7 @@ export async function POST(request: Request) {
       // Generate video script
       console.log('Generating video script...')
       const videoScript = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -141,7 +162,7 @@ export async function POST(request: Request) {
       // Generate notable timestamps
       console.log('Generating notable timestamps...')
       const notableTimestamps = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -173,11 +194,15 @@ export async function POST(request: Request) {
       console.error('Error during content generation:', error)
       
       // Update Firestore with error status
-      await updateDoc(contentRef, {
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-        updatedAt: new Date().toISOString(),
-      })
+      try {
+        await updateDoc(contentRef, {
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+          updatedAt: new Date().toISOString(),
+        })
+      } catch (updateError) {
+        console.error('Failed to update error status:', updateError)
+      }
 
       throw error
     }
