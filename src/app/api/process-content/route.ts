@@ -37,20 +37,61 @@ export async function POST(request: Request) {
 
     const content = contentDoc.data()
     console.log('Content data:', content)
+    console.log('Video ID from content:', content.videoId)
+    console.log('Video ID type:', typeof content.videoId)
     
     if (!content.videoId) {
       console.error('No videoId found in content:', content)
       return NextResponse.json({ error: 'No videoId found in content' }, { status: 400 })
     }
     
+    // Clean video ID (remove any URL parts)
+    let cleanVideoId = content.videoId
+    if (content.videoId.includes('youtube.com') || content.videoId.includes('youtu.be')) {
+      const urlMatch = content.videoId.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+      if (urlMatch) {
+        cleanVideoId = urlMatch[1]
+      }
+    }
+    console.log('Clean video ID:', cleanVideoId)
+    
     try {
       // Get transcript
-      console.log('Fetching YouTube transcript for videoId:', content.videoId)
-      const transcript = await YoutubeTranscript.fetchTranscript(content.videoId)
+      console.log('Fetching YouTube transcript for videoId:', cleanVideoId)
+      
+      let transcript
+      try {
+        transcript = await YoutubeTranscript.fetchTranscript(cleanVideoId)
+      } catch (transcriptError) {
+        console.error('Error fetching transcript:', transcriptError)
+        
+        // Try alternative method - sometimes the video ID needs to be extracted differently
+        try {
+          console.log('Trying alternative transcript method...')
+          transcript = await YoutubeTranscript.fetchTranscript(cleanVideoId, {
+            lang: 'en'
+          })
+        } catch (altError) {
+          console.error('Alternative method also failed:', altError)
+          throw new Error(`Failed to fetch transcript: ${transcriptError instanceof Error ? transcriptError.message : 'Unknown error'}`)
+        }
+      }
+      
+      console.log('Raw transcript data:', transcript)
+      
+      if (!transcript || transcript.length === 0) {
+        throw new Error('No transcript data received from YouTube')
+      }
+      
       const transcriptText = transcript.map(t => t.text).join(' ')
       console.log('Transcript text (first 500 chars):', transcriptText.slice(0, 500));
       console.log('Transcript length:', transcriptText.length);
+      console.log('Number of transcript segments:', transcript.length);
       console.log('Transcript fetched successfully')
+
+      if (transcriptText.length === 0) {
+        throw new Error('Transcript text is empty after processing')
+      }
 
       if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY environment variable is not set')
