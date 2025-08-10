@@ -82,6 +82,8 @@ A professional platform that delivers real-time market-moving influencer mention
    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
    STRIPE_MONTHLY_PRICE_ID=price_your_monthly_plan_price_id
    STRIPE_ANNUAL_PRICE_ID=price_your_annual_plan_price_id
+   STRIPE_MONTHLY_PRODUCT_ID=prod_your_monthly_plan_product_id
+   STRIPE_ANNUAL_PRODUCT_ID=prod_your_annual_plan_product_id
    NEXT_PUBLIC_BASE_URL=http://localhost:3000
 
    # OpenAI Configuration

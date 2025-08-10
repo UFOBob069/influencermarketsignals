@@ -14,6 +14,8 @@ Add these to your `.env.local` file:
  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
  STRIPE_MONTHLY_PRICE_ID=price_your_monthly_plan_price_id
  STRIPE_ANNUAL_PRICE_ID=price_your_annual_plan_price_id
+ STRIPE_MONTHLY_PRODUCT_ID=prod_your_monthly_plan_product_id
+ STRIPE_ANNUAL_PRODUCT_ID=prod_your_annual_plan_product_id
  NEXT_PUBLIC_BASE_URL=http://localhost:3000
  ```
 
@@ -23,11 +25,22 @@ Add these to your `.env.local` file:
  1. Go to [Stripe Dashboard](https://dashboard.stripe.com/)
  2. Navigate to **Products** → **Add Product**
  3. Create a product called "IMS Pro Monthly"
+    - Product ID will be: `prod_xxxxxxxxxxxxx`
+    - Copy this Product ID
  4. Add a recurring price of $49/month
- 5. Copy the Monthly Price ID (starts with `price_`)
- 6. Create another product called "IMS Pro Annual"
- 7. Add a recurring price of $490/year
- 8. Copy the Annual Price ID (starts with `price_`)
+    - Price ID will be: `price_xxxxxxxxxxxxx`
+    - Copy this Price ID
+ 5. Create another product called "IMS Pro Annual"
+    - Product ID will be: `prod_xxxxxxxxxxxxx`
+    - Copy this Product ID
+ 6. Add a recurring price of $490/year
+    - Price ID will be: `price_xxxxxxxxxxxxx`
+    - Copy this Price ID
+
+**Note**: For subscriptions, you primarily use Price IDs in the checkout session. Product IDs are useful for:
+- Organizing your products in the Stripe dashboard
+- Future features like product-specific metadata
+- Webhook event handling
 
 ### Configure Webhooks (Optional)
 1. Go to **Developers** → **Webhooks**
