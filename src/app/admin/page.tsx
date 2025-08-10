@@ -1,178 +1,210 @@
 'use client'
 
+import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import ContentStatusTable from './components/ContentStatusTable'
-import Link from 'next/link'
-import { useState } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, addDoc } from 'firebase/firestore'
 
 export default function AdminPage() {
-  const { user, signOut, error } = useAuth()
+  const { user } = useAuth()
   const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [transcript, setTranscript] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [formError, setFormError] = useState('')
-  const [processingStatus, setProcessingStatus] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState('')
+  
+  // Pro status management
+  const [proUid, setProUid] = useState('')
+  const [isPro, setIsPro] = useState(true)
+  const [proLoading, setProLoading] = useState(false)
+  const [proMessage, setProMessage] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setStatus('loading')
-    setFormError('')
-    setProcessingStatus('Starting content processing...')
+    if (!youtubeUrl.trim()) return
+
+    setIsSubmitting(true)
+    setStatus('')
+    setError('')
 
     try {
-      // Extract video ID from YouTube URL
-      const videoId = extractVideoId(youtubeUrl)
-      if (!videoId) {
-        throw new Error('Invalid YouTube URL')
-      }
-
-      if (!transcript.trim()) {
-        throw new Error('Transcript is required')
-      }
-
-      setProcessingStatus('Adding content to Firestore...')
-      // Add to Firestore
-      const docRef = await addDoc(collection(db, 'content'), {
-        youtubeUrl,
-        videoId,
-        transcript: transcript.trim(),
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      })
-
-      setProcessingStatus('Triggering content processing...')
-      // Trigger content processing (if you have an API route for this)
-      await fetch('/api/process-content', {
+      setStatus('Fetching video data and transcript...')
+      
+      const response = await fetch('/api/youtube/ingest', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentId: docRef.id }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ youtubeUrl }),
       })
 
-      setProcessingStatus('Content processing started successfully')
-      setStatus('success')
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 422) {
+          setError('No transcript available for this video. The video may have captions disabled or be too new to have captions available.')
+        } else {
+          setError(data.error || 'Failed to process video')
+        }
+        return
+      }
+
+      setStatus(`Success! Video processed. Transcript length: ${data.transcriptLength || 'Unknown'} characters`)
       setYoutubeUrl('')
-      setTranscript('')
-    } catch (err) {
-      setStatus('error')
-      setFormError(err instanceof Error ? err.message : 'An error occurred')
-      setProcessingStatus('')
-      console.error('Error processing content:', err)
+      
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const extractVideoId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
-    const match = url.match(regExp)
-    return match && match[2].length === 11 ? match[2] : null
+  const setProStatus = async () => {
+    if (!proUid.trim()) {
+      setProMessage('Please enter a User UID')
+      return
+    }
+
+    setProLoading(true)
+    setProMessage('')
+
+    try {
+      const response = await fetch('/api/user/set-pro-firestore', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uid: proUid.trim(), isPro }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setProMessage(`✅ ${data.message}`)
+        setProUid('')
+      } else {
+        setProMessage(`❌ Error: ${data.error}`)
+      }
+    } catch (error) {
+      setProMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setProLoading(false)
+    }
   }
 
-  if (error) {
+  if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h2 className="text-xl font-semibold text-red-800 mb-2">Error Initializing Admin</h2>
-          <p className="text-red-600 mb-4">{error}</p>
-          <p className="text-gray-600">
-            Please check your Firebase configuration in .env.local
-          </p>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-white mb-4">Admin Access Required</h1>
+          <p className="text-gray-400">Please sign in to access the admin panel.</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        {user ? (
-          <button
-            onClick={() => signOut()}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Sign Out
-          </button>
-        ) : (
-          <Link
-            href="/admin/login"
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Sign In
-          </Link>
-        )}
-      </div>
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Admin Panel</h1>
+        
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">Add New Content</h2>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="youtubeUrl" className="block text-sm font-medium mb-2">
+                YouTube URL
+              </label>
+              <input
+                type="url"
+                id="youtubeUrl"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
 
-      {user ? (
-        <>
-          <div className="bg-white rounded-lg shadow p-6 mb-8 max-w-2xl">
-            <h2 className="text-xl font-semibold mb-4">Submit New Content</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="youtubeUrl" className="block text-sm font-medium text-gray-700 mb-1">
-                  YouTube URL
-                </label>
-                <input
-                  type="text"
-                  id="youtubeUrl"
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="transcript" className="block text-sm font-medium text-gray-700 mb-1">
-                  Transcript (paste the full transcript here)
-                </label>
-                <textarea
-                  id="transcript"
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                  placeholder="Paste the full transcript from the YouTube video here..."
-                  rows={8}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Copy the transcript from YouTube&apos;s transcript feature and paste it here
-                </p>
-              </div>
-              <button
-                type="submit"
-                disabled={status === 'loading'}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-              >
-                {status === 'loading' ? 'Processing...' : 'Submit'}
-              </button>
-              {processingStatus && (
-                <p className="text-blue-600">{processingStatus}</p>
-              )}
-              {status === 'success' && (
-                <p className="text-green-600">Content submitted successfully!</p>
-              )}
-              {status === 'error' && (
-                <p className="text-red-600">{formError}</p>
-              )}
-            </form>
-          </div>
-          <ContentStatusTable />
-        </>
-      ) : (
-        <div className="bg-white rounded-lg shadow p-6 text-center">
-          <h2 className="text-xl font-semibold mb-4">Admin Access Required</h2>
-          <p className="text-gray-600 mb-4">
-            Please sign in to access the admin dashboard and manage content.
-          </p>
-          <Link
-            href="/admin/login"
-            className="inline-block px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Sign In
-          </Link>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Processing...' : 'Process Video'}
+            </button>
+          </form>
+
+          {status && (
+            <div className="mt-4 p-3 bg-green-900 border border-green-700 rounded-md">
+              <p className="text-green-200">{status}</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-md">
+              <p className="text-red-200 mb-2">{error}</p>
+              <p className="text-sm text-red-300">
+                You can try a different video or contact support if this persists.
+              </p>
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">User Pro Status Management</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-300 block mb-2">User UID</label>
+              <input
+                type="text"
+                value={proUid}
+                onChange={(e) => setProUid(e.target.value)}
+                placeholder="Enter user UID (from Firebase Auth)"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-300 block mb-2">Pro Status</label>
+              <select
+                value={isPro.toString()}
+                onChange={(e) => setIsPro(e.target.value === 'true')}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="true">Pro User</option>
+                <option value="false">Free User</option>
+              </select>
+            </div>
+
+            <button
+              onClick={setProStatus}
+              disabled={proLoading}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {proLoading ? 'Setting...' : 'Set Pro Status'}
+            </button>
+
+            {proMessage && (
+              <div className={`p-3 rounded-md text-sm ${
+                proMessage.includes('✅') ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'
+              }`}>
+                {proMessage}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 text-sm text-gray-400">
+            <p><strong>Note:</strong> Users will need to sign out and sign back in to see their updated Pro status.</p>
+            <p className="mt-1"><strong>Current user:</strong> {user.email} (UID: {user.uid})</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold mb-4">Content Status</h2>
+          <ContentStatusTable />
+        </div>
+      </div>
     </div>
   )
 } 

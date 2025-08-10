@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
+import SiteNav from "./components/SiteNav";
+import { AuthProvider } from "@/lib/auth";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MarketPod Digest - Stay Ahead of the Market",
-  description: "Get concise summaries from the top finance podcasts. Stay informed with AI-powered insights and analysis.",
-  keywords: "finance podcast, market analysis, investment insights, podcast summary, financial news",
+  title: "Influencer Market Signals — Daily Market Signals",
+  description:
+    "Hear what top finance influencers are saying about stocks. Updated daily. We scan 100+ voices to surface tickers, sentiment, and snippets.",
+  keywords:
+    "stocks, influencers, finance podcasts, market signals, sentiment, tickers, trading, daily updates",
 };
 
 export default function RootLayout({
@@ -18,9 +22,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className} suppressHydrationWarning>
-        {children}
-        <Analytics />
+      <body className={`${inter.className} bg-black text-white`} suppressHydrationWarning>
+        <AuthProvider>
+          <SiteNav />
+          {children}
+          <Analytics />
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/firebase'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import OpenAI from 'openai'
+import { extractVideoId, fetchTranscriptCascade } from '@/lib/fetchTranscript'
 
 // Check if OpenAI API key is available
 if (!process.env.OPENAI_API_KEY) {
@@ -12,7 +13,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     console.log('Starting content processing...')
     console.log('Environment check - OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
@@ -39,27 +40,36 @@ export async function POST(request: Request) {
     console.log('Video ID from content:', content.videoId)
     console.log('Video ID type:', typeof content.videoId)
     
-    if (!content.videoId) {
-      console.error('No videoId found in content:', content)
-      return NextResponse.json({ error: 'No videoId found in content' }, { status: 400 })
+    const providedVideoId: string | undefined = content.videoId
+    let cleanVideoId = providedVideoId || null
+    if (!cleanVideoId && content.youtubeUrl) {
+      cleanVideoId = extractVideoId(content.youtubeUrl)
     }
-    
-    // Clean video ID (remove any URL parts)
-    let cleanVideoId = content.videoId
-    if (content.videoId.includes('youtube.com') || content.videoId.includes('youtu.be')) {
-      const urlMatch = content.videoId.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/)
-      if (urlMatch) {
-        cleanVideoId = urlMatch[1]
-      }
+    if (!cleanVideoId) {
+      console.error('No videoId/youtubeUrl found in content:', content)
+      return NextResponse.json({ error: 'No videoId/youtubeUrl found in content' }, { status: 400 })
     }
     console.log('Clean video ID:', cleanVideoId)
     
     try {
-      // Use the manually provided transcript
-      const transcriptText = content.transcript
+      // mark as processing
+      await updateDoc(contentRef, { status: 'processing', updatedAt: new Date().toISOString() })
+
+      // Use existing transcript or try to fetch automatically
+      let transcriptText: string = content.transcript || ''
       
       if (!transcriptText || transcriptText.trim().length === 0) {
-        throw new Error('No transcript provided in content. Please paste the transcript manually.')
+        const fetched = await fetchTranscriptCascade(cleanVideoId)
+        if (fetched && fetched.trim().length > 0) {
+          transcriptText = fetched
+        }
+      }
+
+      if (!transcriptText || transcriptText.trim().length === 0) {
+        return NextResponse.json(
+          { error: 'No transcript available for this video. Please paste the transcript manually.' },
+          { status: 422 }
+        )
       }
       
       console.log('Using manually provided transcript')
@@ -68,6 +78,50 @@ export async function POST(request: Request) {
 
       if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY environment variable is not set')
+      }
+
+      // Extract tickers + sentiment + timestamps (JSON)
+      console.log('Extracting tickers and highlights...')
+      const extraction = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              `You extract ONLY structured data from a finance transcript. Reply with STRICT JSON only, no prose.
+\nSchema:
+{
+  "mentions": [
+    { "ticker": string, "sentiment": "bullish"|"bearish"|"neutral", "timestamps": number[] }
+  ],
+  "highlights": [
+    { "startSec": number, "endSec"?: number, "text": string }
+  ]
+}
+\nGuidelines:
+- Tickers MUST be real symbols explicitly mentioned. Use uppercase.
+- sentiment must reflect stated sentiment in the transcript; if unclear, use "neutral".
+- timestamps: array of approximate seconds from episode start when the ticker was discussed. Estimate if needed based on transcript timing hints.
+- highlights: 5–12 top quotes or moments with startSec (approx) and short text.`
+          },
+          { role: 'user', content: transcriptText },
+        ],
+        temperature: 0.2,
+        max_tokens: 1200,
+      })
+
+      type Sentiment = 'bullish' | 'bearish' | 'neutral'
+      interface Mention { ticker: string; sentiment: Sentiment; timestamps?: number[] }
+      interface Highlight { startSec: number; endSec?: number; text: string }
+      let extractedMentions: Mention[] = []
+      let highlights: Highlight[] = []
+      try {
+        const raw = extraction.choices[0].message.content || '{}'
+        const parsed = JSON.parse(raw)
+        extractedMentions = Array.isArray(parsed.mentions) ? parsed.mentions : []
+        highlights = Array.isArray(parsed.highlights) ? parsed.highlights : []
+      } catch {
+        console.warn('Failed to parse extraction JSON, defaulting to empty arrays')
       }
 
       // Generate blog article
@@ -180,7 +234,28 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: `You are an assistant designed to extract only the most important timestamps from a financial podcast transcript.\n\nYour job is to output a clean, chronological list of notable segments based only on what was said.\n\nFormat:\n- Each item should include the approximate timestamp (MM:SS)\n- A short, factual description of the discussion at that time\n- No interpretation, no summarizing the entire episode, no filler — just exactly what was discussed and when\n\nOutput example:\n- **[00:00]** — Introduction and market context\n- **[03:42]** — Guest introduces thesis on $NVDA post-earnings\n- **[07:10]** — Debate on whether the Fed will raise again in 2025\n- **[12:33]** — Mention of oil prices and Middle East tensions\n- **[16:20]** — Host questions the viability of AI startups\n\nUse only the information in the transcript. Your goal is to help someone jump to the exact moment where something important was said. Do not skip bold claims or tickers mentioned.`
+            content: `You are an assistant that extracts only the most important timestamps from a financial podcast transcript.
+
+Your output is a clean, chronological list of notable segments, based strictly on what was actually said.
+
+Rules:
+- Include the approximate timestamp in MM:SS (or H:MM:SS if needed).
+- Use the exact timestamp from the transcript when available; if none exists, estimate conservatively based on surrounding context.
+- Keep each description short, factual, and specific — just what was discussed, not summaries of the whole show.
+- Always capture bold claims, ticker symbols (e.g., $NVDA), specific numbers, and any material news or guidance.
+- Exclude filler, pleasantries, and minor tangents.
+- Do not add interpretation, opinions, or extra analysis beyond what is explicitly stated.
+- Keep the list chronological and evenly spaced; skip repetitive points unless they add new facts.
+
+Format:
+- **[MM:SS]** — Brief factual description
+- **[03:42]** — Guest outlines thesis on $NVDA post-earnings
+- **[07:10]** — Debate on whether the Fed will raise rates in 2025
+- **[12:33]** — Mention of oil prices and Middle East tensions
+- **[16:20]** — Host questions viability of AI startups
+
+Your goal: help a reader jump directly to the exact moments in the episode where something important was said.
+`
           },
           {
             role: "user",
@@ -199,6 +274,8 @@ export async function POST(request: Request) {
         tweetThread: tweetThread.choices[0].message.content,
         videoScript: videoScript.choices[0].message.content,
         notableTimestamps: notableTimestamps.choices[0].message.content,
+        extractedMentions,
+        highlights,
         updatedAt: new Date().toISOString(),
       })
       console.log('Firestore updated successfully')

@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import Link from 'next/link'
 
-export default function LoginPage() {
+export default function SignInPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -19,7 +20,8 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password)
-      router.push('/admin')
+      // Redirect to dashboard for regular users, admin for admin users
+      router.push('/dashboard')
     } catch (error) {
       setError('Failed to sign in. Please check your credentials.')
       console.error('Login error:', error)
@@ -33,9 +35,13 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            Admin Login
+            Sign In to IMS
           </h2>
+          <p className="mt-2 text-center text-sm text-zinc-400">
+            Access your market signals dashboard
+          </p>
         </div>
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
@@ -86,6 +92,7 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+        
         <div className="pt-2">
           <button
             onClick={async () => {
@@ -93,7 +100,7 @@ export default function LoginPage() {
               setLoading(true)
               try {
                 await signInWithGoogle()
-                router.push('/admin')
+                router.push('/dashboard')
               } catch {
                 setError('Google sign-in failed')
               } finally {
@@ -105,7 +112,16 @@ export default function LoginPage() {
             Continue with Google
           </button>
         </div>
+
+        <div className="text-center">
+          <p className="text-sm text-zinc-400">
+            Don&apos;t have an account?{' '}
+            <Link href="/signup" className="text-blue-400 hover:text-blue-300">
+              Sign up for Pro
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )
-} 
+}
