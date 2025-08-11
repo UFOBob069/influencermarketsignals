@@ -13,7 +13,7 @@ export default function Home() {
                 Hear What Top Finance Influencers Are Saying About Stocks
               </h1>
               <p className="text-base md:text-lg lg:text-2xl text-zinc-300 mt-4 md:mt-6">
-                We scan 100+ finance voices to find the day's most-mentioned stocks — and let you hear the exact clips.
+                We scan 100+ finance voices to find the day&apos;s most-mentioned stocks — and let you hear the exact clips.
               </p>
               <p className="text-sm text-zinc-400 mt-2">
                 Updated daily. Free users see signals from 14 days ago.
@@ -23,7 +23,7 @@ export default function Home() {
                   href="/dashboard?d=13"
                   className="block w-full md:w-auto px-6 py-3 rounded-md bg-white text-black font-semibold hover:bg-zinc-200 transition text-center"
                 >
-                  Show Me Today's Signals
+                  Show Me Today&apos;s Signals
                 </Link>
                 <Link
                   href="/signup"
@@ -127,7 +127,7 @@ function SampleUnlockedDay() {
   return (
     <section className="py-12 md:py-16 border-t border-zinc-800">
       <div className="max-w-6xl mx-auto px-4">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-8 md:mb-12">See What You're Missing</h2>
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-8 md:mb-12">See What You&apos;re Missing</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           <UnlockedPreview />
           <LockedPreview label="Yesterday" />
