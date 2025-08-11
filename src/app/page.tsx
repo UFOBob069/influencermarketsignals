@@ -5,49 +5,49 @@ import Link from 'next/link'
 export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white">
-      <section className="py-20 md:py-28">
+      <section className="py-12 md:py-28">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+          <div className="grid md:grid-cols-2 gap-8 md:gap-10 items-center">
             <div>
-              <h1 className="text-4xl md:text-6xl font-extrabold leading-tight">
+              <h1 className="text-3xl md:text-4xl lg:text-6xl font-extrabold leading-tight">
                 Hear What Top Finance Influencers Are Saying About Stocks
               </h1>
-              <p className="text-lg md:text-2xl text-zinc-300 mt-6">
-                We scan 100+ finance voices to find the day’s most-mentioned stocks — and let you hear the exact clips.
+              <p className="text-base md:text-lg lg:text-2xl text-zinc-300 mt-4 md:mt-6">
+                We scan 100+ finance voices to find the day's most-mentioned stocks — and let you hear the exact clips.
               </p>
               <p className="text-sm text-zinc-400 mt-2">
                 Updated daily. Free users see signals from 14 days ago.
               </p>
-              <div className="mt-8 flex flex-wrap gap-4">
+              <div className="mt-6 md:mt-8 space-y-3 md:space-y-0 md:flex md:flex-wrap md:gap-4">
                 <Link
                   href="/dashboard?d=13"
-                  className="px-6 py-3 rounded-md bg-white text-black font-semibold hover:bg-zinc-200 transition"
+                  className="block w-full md:w-auto px-6 py-3 rounded-md bg-white text-black font-semibold hover:bg-zinc-200 transition text-center"
                 >
-                  Show Me Today’s Signals
+                  Show Me Today's Signals
                 </Link>
                 <Link
                   href="/signup"
-                  className="px-6 py-3 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+                  className="block w-full md:w-auto px-6 py-3 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition text-center"
                 >
                   Start Free Trial
                 </Link>
-                                        <span className="text-zinc-400 self-center text-sm">
-                          Bloomberg $20K/yr → IMS Pro $49/mo (99.75% cheaper)
-                        </span>
+                <span className="block md:inline text-zinc-400 text-center md:self-center text-sm">
+                  Bloomberg $20K/yr → IMS Pro $49/mo (99.75% cheaper)
+                </span>
               </div>
-              <div className="mt-6 text-zinc-400 text-sm">
+              <div className="mt-4 md:mt-6 text-zinc-400 text-sm text-center md:text-left">
                 Early access spots are limited. Join now to lock in pricing.
               </div>
             </div>
-            <div>
+            <div className="hidden md:block">
               <HeroMockup />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="py-14 border-t border-zinc-800">
-        <div className="max-w-6xl mx-auto px-4 grid md:grid-cols-3 gap-8">
+      <section className="py-10 md:py-14 border-t border-zinc-800">
+        <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           <StatCard title="Sources scanned" value="100+" />
           <StatCard title="Mentions tracked/day" value="1,000+" />
           <StatCard title="Update frequency" value="Updated Daily" />
@@ -56,8 +56,8 @@ export default function Home() {
 
       <SampleUnlockedDay />
 
-      <section className="py-16 border-t border-zinc-800">
-        <div className="max-w-5xl mx-auto px-4 grid md:grid-cols-3 gap-6 text-zinc-300">
+      <section className="py-12 md:py-16 border-t border-zinc-800">
+        <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-6 text-zinc-300">
           <TrustItem label="Professionals use daily" />
           <TrustItem label="Sentiment analysis & insights" />
           <TrustItem label="Ticker + sentiment extraction" />
@@ -107,31 +107,31 @@ function HeroMockup() {
 
 function StatCard({ title, value, sub }: { title: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-zinc-800 p-6 bg-zinc-950">
-      <div className="text-zinc-400 text-sm">{title}</div>
-      <div className="text-2xl font-bold mt-2">{value}</div>
-      {sub ? <div className="text-xs text-zinc-500 mt-1">{sub}</div> : null}
+    <div className="text-center">
+      <div className="text-2xl md:text-3xl font-bold">{value}</div>
+      <div className="text-zinc-400 text-sm md:text-base">{title}</div>
+      {sub && <div className="text-zinc-500 text-xs">{sub}</div>}
     </div>
   )
 }
 
 function TrustItem({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-zinc-800 p-5 bg-zinc-950 text-center">
-      <div className="font-medium">{label}</div>
+    <div className="text-center md:text-left">
+      <div className="text-lg font-semibold mb-2">✓ {label}</div>
     </div>
   )
 }
 
 function SampleUnlockedDay() {
   return (
-    <section className="py-14 border-t border-zinc-800">
+    <section className="py-12 md:py-16 border-t border-zinc-800">
       <div className="max-w-6xl mx-auto px-4">
-        <h3 className="text-xl font-semibold mb-4">Today vs Free Preview</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-8 md:mb-12">See What You're Missing</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           <UnlockedPreview />
-          <LockedPreview label="Today" />
-          <LockedPreview label="1d ago" />
+          <LockedPreview label="Yesterday" />
+          <LockedPreview label="2 days ago" />
         </div>
       </div>
     </section>
@@ -139,7 +139,6 @@ function SampleUnlockedDay() {
 }
 
 function UnlockedPreview() {
-  // Simple static preview; live data is on the dashboard
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
       <div className="text-xs text-zinc-400 mb-2">14d ago — Unlocked</div>

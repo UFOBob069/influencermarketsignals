@@ -173,13 +173,13 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold">Market Signals Timeline</h1>
-          <div className="flex items-center gap-3">
+      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">Market Signals Timeline</h1>
+          <div className="flex items-center gap-2 md:gap-3">
             <button
               onClick={() => setShowDateSelector(!showDateSelector)}
-              className="text-xs px-3 py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              className="text-xs px-2 md:px-3 py-1 md:py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
               title="Browse historical data"
             >
               📅 Browse History
@@ -191,7 +191,7 @@ export default function DashboardPage() {
                   window.location.reload()
                 }
               }}
-              className="text-xs px-3 py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              className="text-xs px-2 md:px-3 py-1 md:py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
               title="Toggle Pro (for demo)"
             >
               {isPro ? 'Pro ✓' : 'Free'}
@@ -281,14 +281,14 @@ export default function DashboardPage() {
         {/* Timeline Table */}
         <div className="bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden mb-8">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead className="bg-zinc-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Tickers</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Sentiment</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Top Mentions</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Access</th>
+                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Date</th>
+                  <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Tickers</th>
+                  <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Sentiment</th>
+                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Top Mentions</th>
+                  <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Access</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
@@ -299,7 +299,7 @@ export default function DashboardPage() {
                       day.isFreeDay ? 'bg-emerald-950/20 border-l-4 border-emerald-500' : ''
                     } ${selectedDayIndex === day.dayIndex ? 'bg-zinc-800/50' : ''}`}
                   >
-                    <td className="px-4 py-4">
+                    <td className="px-3 md:px-4 py-4">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setSelectedDayIndex(day.dayIndex)}
@@ -314,14 +314,14 @@ export default function DashboardPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 md:px-4 py-4">
                       <span className="text-sm text-zinc-300">
                         {day.tickerCount > 0 ? day.tickerCount : '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 md:px-4 py-4">
                       {day.tickerCount > 0 ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 md:gap-2">
                           <div className="flex gap-1">
                             <span className="text-xs text-emerald-400">{day.bullishPercent}%</span>
                             <span className="text-xs text-zinc-500">|</span>
@@ -332,13 +332,13 @@ export default function DashboardPage() {
                         <span className="text-sm text-zinc-500">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 md:px-4 py-4">
                       {day.topTickers.length > 0 ? (
-                        <div className="flex gap-1">
-                          {day.topTickers.map((ticker, idx) => (
+                        <div className="flex flex-wrap gap-1">
+                          {day.topTickers.slice(0, 2).map((ticker, idx) => (
                             <span
                               key={idx}
-                              className={`text-xs px-2 py-1 rounded ${
+                              className={`text-xs px-1 md:px-2 py-1 rounded ${
                                 ticker.sentiment === 'bullish' ? 'bg-emerald-900 text-emerald-200' :
                                 ticker.sentiment === 'bearish' ? 'bg-red-900 text-red-200' :
                                 'bg-zinc-700 text-zinc-300'
@@ -347,33 +347,36 @@ export default function DashboardPage() {
                               {ticker.ticker}
                             </span>
                           ))}
+                          {day.topTickers.length > 2 && (
+                            <span className="text-xs text-zinc-400">+{day.topTickers.length - 2}</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-zinc-500">No data</span>
                       )}
                     </td>
-                    <td className="px-4 py-4">
-                      {day.isLocked ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-orange-400">🔒</span>
+                    <td className="px-2 md:px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        {day.isLocked ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-zinc-600">🔒</span>
+                            <span className="text-xs text-zinc-400 hidden sm:inline">Locked</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-emerald-400">✓</span>
+                            <span className="text-xs text-emerald-400 hidden sm:inline">Unlocked</span>
+                          </div>
+                        )}
+                        {day.isLocked && (
                           <button
                             onClick={() => setShowUpgrade(true)}
-                            className="text-xs text-orange-400 hover:text-orange-300 underline"
+                            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
                           >
-                            Unlock →
+                            Upgrade
                           </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-400">✅</span>
-                                                          <Link
-                                  href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
-                                  className="text-xs text-emerald-400 hover:text-emerald-300 underline"
-                                >
-                                  View Details →
-                                </Link>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
