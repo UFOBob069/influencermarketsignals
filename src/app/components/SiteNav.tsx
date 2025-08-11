@@ -21,6 +21,7 @@ export default function SiteNav() {
           <div className="hidden md:flex items-center gap-6">
             <Link href="/dashboard" className="text-zinc-300 hover:text-white text-sm">Dashboard</Link>
             <Link href="/dashboard/trending" className="text-zinc-300 hover:text-white text-sm">Trending</Link>
+            <Link href="/about" className="text-zinc-300 hover:text-white text-sm">About</Link>
             {user && (
               <Link href="/account" className="text-zinc-300 hover:text-white text-sm">Account</Link>
             )}
@@ -94,6 +95,13 @@ export default function SiteNav() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Trending
+            </Link>
+            <Link 
+              href="/about" 
+              className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 rounded text-sm"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              About
             </Link>
             {user && (
               <Link 
