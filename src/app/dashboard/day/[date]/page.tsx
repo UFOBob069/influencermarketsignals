@@ -186,31 +186,42 @@ export default function DayPage({ params }: PageProps) {
           
           // Handle different date formats more robustly
           let docDate: Date
-          if (doc.publishedAt.includes(',')) {
-            // Format like "Aug 10, 2025"
-            docDate = new Date(doc.publishedAt)
-          } else if (doc.publishedAt.includes('-')) {
-            // Format like "2025-08-10"
-            const [year, month, day] = doc.publishedAt.split('-').map(Number)
-            docDate = new Date(year, month - 1, day)
-          } else {
-            // Try parsing as is
-            docDate = new Date(doc.publishedAt)
+          try {
+            if (doc.publishedAt.includes(',')) {
+              // Format like "Aug 10, 2025"
+              docDate = new Date(doc.publishedAt)
+            } else if (doc.publishedAt.includes('-')) {
+              // Format like "2025-08-10"
+              const [year, month, day] = doc.publishedAt.split('-').map(Number)
+              docDate = new Date(year, month - 1, day)
+            } else {
+              // Try parsing as is
+              docDate = new Date(doc.publishedAt)
+            }
+            
+            // Check if the date is valid
+            if (isNaN(docDate.getTime())) {
+              console.warn('Invalid date found:', doc.publishedAt, 'for doc:', doc.id)
+              return false
+            }
+            
+            const isInRange = docDate >= start && docDate < end
+            
+            console.log('Debug: Doc date check', {
+              docId: doc.id,
+              publishedAt: doc.publishedAt,
+              parsedDate: docDate.toISOString(),
+              localDate: docDate.toLocaleDateString(),
+              isInRange,
+              start: start.toLocaleDateString(),
+              end: end.toLocaleDateString()
+            })
+            
+            return isInRange
+          } catch (error) {
+            console.error('Error parsing date:', doc.publishedAt, 'for doc:', doc.id, error)
+            return false
           }
-          
-          const isInRange = docDate >= start && docDate < end
-          
-          console.log('Debug: Doc date check', {
-            docId: doc.id,
-            publishedAt: doc.publishedAt,
-            parsedDate: docDate.toISOString(),
-            localDate: docDate.toLocaleDateString(),
-            isInRange,
-            start: start.toLocaleDateString(),
-            end: end.toLocaleDateString()
-          })
-          
-          return isInRange
         })
         
         setContent(filteredDocs)
