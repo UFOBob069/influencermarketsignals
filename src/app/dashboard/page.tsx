@@ -278,17 +278,103 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Timeline Table */}
-        <div className="bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden mb-8">
+        {/* Mobile Card View (for very small screens) */}
+        <div className="md:hidden space-y-3 mb-8">
+          {daysData.map((day) => (
+            <div 
+              key={day.dayIndex}
+              className={`bg-zinc-950 border border-zinc-800 rounded-lg p-4 ${
+                day.isFreeDay ? 'border-emerald-500 bg-emerald-950/20' : ''
+              } ${selectedDayIndex === day.dayIndex ? 'bg-zinc-800/50' : ''}`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedDayIndex(day.dayIndex)}
+                    className={`text-sm font-medium ${
+                      selectedDayIndex === day.dayIndex ? 'text-white' : 'text-zinc-300'
+                    } hover:text-white transition-colors`}
+                  >
+                    {formatDate(day.date)}
+                  </button>
+                  {day.isFreeDay && (
+                    <span className="text-xs bg-emerald-900 text-emerald-200 px-2 py-1 rounded">Free Day</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {day.isLocked ? (
+                    <span className="text-zinc-600">🔒</span>
+                  ) : (
+                    <span className="text-emerald-400">✓</span>
+                  )}
+                  {day.isLocked && (
+                    <button
+                      onClick={() => setShowUpgrade(true)}
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <div className="text-zinc-400 text-xs">Tickers</div>
+                  <div className="text-zinc-300">{day.tickerCount > 0 ? day.tickerCount : '-'}</div>
+                </div>
+                <div>
+                  <div className="text-zinc-400 text-xs">Sentiment</div>
+                  {day.tickerCount > 0 ? (
+                    <div className="flex gap-1">
+                      <span className="text-emerald-400 text-xs">{day.bullishPercent}%</span>
+                      <span className="text-zinc-500 text-xs">|</span>
+                      <span className="text-red-400 text-xs">{day.bearishPercent}%</span>
+                    </div>
+                  ) : (
+                    <div className="text-zinc-500">-</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-zinc-400 text-xs">Top Mentions</div>
+                  {day.topTickers.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {day.topTickers.slice(0, 2).map((ticker, idx) => (
+                        <span
+                          key={idx}
+                          className={`text-xs px-1 py-1 rounded ${
+                            ticker.sentiment === 'bullish' ? 'bg-emerald-900 text-emerald-200' :
+                            ticker.sentiment === 'bearish' ? 'bg-red-900 text-red-200' :
+                            'bg-zinc-700 text-zinc-300'
+                          }`}
+                        >
+                          {ticker.ticker}
+                        </span>
+                      ))}
+                      {day.topTickers.length > 2 && (
+                        <span className="text-xs text-zinc-400">+{day.topTickers.length - 2}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-zinc-500">-</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Timeline Table */}
+        <div className="hidden md:block bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden mb-8">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full min-w-[500px] md:min-w-[600px]">
               <thead className="bg-zinc-900">
                 <tr>
-                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Date</th>
-                  <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Tickers</th>
-                  <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Sentiment</th>
-                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Top Mentions</th>
-                  <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Access</th>
+                  <th className="px-2 md:px-3 lg:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Date</th>
+                  <th className="px-1 md:px-2 lg:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">#</th>
+                  <th className="px-1 md:px-2 lg:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Sentiment</th>
+                  <th className="px-2 md:px-3 lg:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Top</th>
+                  <th className="px-1 md:px-2 lg:px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">Access</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
@@ -299,8 +385,8 @@ export default function DashboardPage() {
                       day.isFreeDay ? 'bg-emerald-950/20 border-l-4 border-emerald-500' : ''
                     } ${selectedDayIndex === day.dayIndex ? 'bg-zinc-800/50' : ''}`}
                   >
-                    <td className="px-3 md:px-4 py-4">
-                      <div className="flex items-center gap-2">
+                    <td className="px-2 md:px-3 lg:px-4 py-4">
+                      <div className="flex items-center gap-1 md:gap-2">
                         <button
                           onClick={() => setSelectedDayIndex(day.dayIndex)}
                           className={`text-sm font-medium ${
@@ -310,18 +396,18 @@ export default function DashboardPage() {
                           {formatDate(day.date)}
                         </button>
                         {day.isFreeDay && (
-                          <span className="text-xs bg-emerald-900 text-emerald-200 px-2 py-1 rounded">Free Day</span>
+                          <span className="text-xs bg-emerald-900 text-emerald-200 px-1 md:px-2 py-1 rounded">Free</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-2 md:px-4 py-4">
+                    <td className="px-1 md:px-2 lg:px-4 py-4">
                       <span className="text-sm text-zinc-300">
                         {day.tickerCount > 0 ? day.tickerCount : '-'}
                       </span>
                     </td>
-                    <td className="px-2 md:px-4 py-4">
+                    <td className="px-1 md:px-2 lg:px-4 py-4">
                       {day.tickerCount > 0 ? (
-                        <div className="flex items-center gap-1 md:gap-2">
+                        <div className="flex items-center gap-1">
                           <div className="flex gap-1">
                             <span className="text-xs text-emerald-400">{day.bullishPercent}%</span>
                             <span className="text-xs text-zinc-500">|</span>
@@ -332,10 +418,10 @@ export default function DashboardPage() {
                         <span className="text-sm text-zinc-500">-</span>
                       )}
                     </td>
-                    <td className="px-3 md:px-4 py-4">
+                    <td className="px-2 md:px-3 lg:px-4 py-4">
                       {day.topTickers.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
-                          {day.topTickers.slice(0, 2).map((ticker, idx) => (
+                          {day.topTickers.slice(0, 1).map((ticker, idx) => (
                             <span
                               key={idx}
                               className={`text-xs px-1 md:px-2 py-1 rounded ${
@@ -347,33 +433,34 @@ export default function DashboardPage() {
                               {ticker.ticker}
                             </span>
                           ))}
-                          {day.topTickers.length > 2 && (
-                            <span className="text-xs text-zinc-400">+{day.topTickers.length - 2}</span>
+                          {day.topTickers.length > 1 && (
+                            <span className="text-xs text-zinc-400">+{day.topTickers.length - 1}</span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-zinc-500">No data</span>
+                        <span className="text-sm text-zinc-500">-</span>
                       )}
                     </td>
-                    <td className="px-2 md:px-4 py-4">
-                      <div className="flex items-center gap-2">
+                    <td className="px-1 md:px-2 lg:px-4 py-4">
+                      <div className="flex items-center gap-1 md:gap-2">
                         {day.isLocked ? (
                           <div className="flex items-center gap-1">
                             <span className="text-zinc-600">🔒</span>
-                            <span className="text-xs text-zinc-400 hidden sm:inline">Locked</span>
+                            <span className="text-xs text-zinc-400 hidden lg:inline">Locked</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
                             <span className="text-emerald-400">✓</span>
-                            <span className="text-xs text-emerald-400 hidden sm:inline">Unlocked</span>
+                            <span className="text-xs text-emerald-400 hidden lg:inline">Unlocked</span>
                           </div>
                         )}
                         {day.isLocked && (
                           <button
                             onClick={() => setShowUpgrade(true)}
-                            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
+                            className="text-xs bg-blue-600 text-white px-1 md:px-2 py-1 rounded hover:bg-blue-700 transition-colors"
                           >
-                            Upgrade
+                            <span className="hidden sm:inline">Upgrade</span>
+                            <span className="sm:hidden">↑</span>
                           </button>
                         )}
                       </div>
