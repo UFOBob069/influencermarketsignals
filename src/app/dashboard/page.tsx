@@ -317,6 +317,14 @@ export default function DashboardPage() {
                       Upgrade
                     </button>
                   )}
+                  {!day.isLocked && (
+                    <Link
+                      href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 underline"
+                    >
+                      View Details →
+                    </Link>
+                  )}
                 </div>
               </div>
               
@@ -361,25 +369,6 @@ export default function DashboardPage() {
                     <div className="text-zinc-500">-</div>
                   )}
                 </div>
-              </div>
-              
-              {/* Navigation Link */}
-              <div className="mt-3 pt-3 border-t border-zinc-800">
-                {!day.isLocked ? (
-                  <Link
-                    href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
-                    className="text-xs text-emerald-400 hover:text-emerald-300 underline"
-                  >
-                    View Details →
-                  </Link>
-                ) : (
-                  <button
-                    onClick={() => setShowUpgrade(true)}
-                    className="text-xs text-zinc-400 hover:text-zinc-300 underline"
-                  >
-                    Unlock to View →
-                  </button>
-                )}
               </div>
             </div>
           ))}
