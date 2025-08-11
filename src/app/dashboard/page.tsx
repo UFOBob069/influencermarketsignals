@@ -175,14 +175,15 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-black text-white">
       <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-6 md:mb-8">
-          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold">Market Signals Timeline</h1>
-          <div className="flex items-center gap-2 md:gap-3 ml-auto">
+          <h1 className="text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold flex-shrink-0">Market Signals Timeline</h1>
+          <div className="flex items-center gap-1 md:gap-2 lg:gap-3 ml-auto flex-shrink-0">
             <button
               onClick={() => setShowDateSelector(!showDateSelector)}
-              className="text-xs px-2 md:px-3 py-1 md:py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              className="text-xs px-1 md:px-2 lg:px-3 py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
               title="Browse historical data"
             >
-              📅 Browse History
+              <span className="hidden sm:inline">📅 Browse History</span>
+              <span className="sm:hidden">📅</span>
             </button>
             <button
               onClick={() => {
@@ -191,10 +192,11 @@ export default function DashboardPage() {
                   window.location.reload()
                 }
               }}
-              className="text-xs px-2 md:px-3 py-1 md:py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+              className="text-xs px-1 md:px-2 lg:px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
               title="Toggle Pro (for demo)"
             >
-              Pro ✓
+              <span className="hidden sm:inline">Pro ✓</span>
+              <span className="sm:hidden">Pro</span>
             </button>
           </div>
         </div>
