@@ -360,6 +360,25 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
+              
+              {/* Navigation Link */}
+              <div className="mt-3 pt-3 border-t border-zinc-800">
+                {!day.isLocked ? (
+                  <Link
+                    href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 underline"
+                  >
+                    View Details →
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => setShowUpgrade(true)}
+                    className="text-xs text-zinc-400 hover:text-zinc-300 underline"
+                  >
+                    Unlock to View →
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -387,14 +406,25 @@ export default function DashboardPage() {
                   >
                     <td className="px-2 md:px-3 lg:px-4 py-4">
                       <div className="flex items-center gap-1 md:gap-2">
-                        <button
-                          onClick={() => setSelectedDayIndex(day.dayIndex)}
-                          className={`text-sm font-medium ${
-                            selectedDayIndex === day.dayIndex ? 'text-white' : 'text-zinc-300'
-                          } hover:text-white transition-colors`}
-                        >
-                          {formatDate(day.date)}
-                        </button>
+                        {!day.isLocked ? (
+                          <Link
+                            href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                            className={`text-sm font-medium ${
+                              selectedDayIndex === day.dayIndex ? 'text-white' : 'text-zinc-300'
+                            } hover:text-white transition-colors`}
+                          >
+                            {formatDate(day.date)}
+                          </Link>
+                        ) : (
+                          <button
+                            onClick={() => setSelectedDayIndex(day.dayIndex)}
+                            className={`text-sm font-medium ${
+                              selectedDayIndex === day.dayIndex ? 'text-white' : 'text-zinc-300'
+                            } hover:text-white transition-colors`}
+                          >
+                            {formatDate(day.date)}
+                          </button>
+                        )}
                         {day.isFreeDay && (
                           <span className="text-xs bg-emerald-900 text-emerald-200 px-1 md:px-2 py-1 rounded">Free</span>
                         )}
@@ -462,6 +492,15 @@ export default function DashboardPage() {
                             <span className="hidden sm:inline">Upgrade</span>
                             <span className="sm:hidden">↑</span>
                           </button>
+                        )}
+                        {!day.isLocked && (
+                          <Link
+                            href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                            className="text-xs text-emerald-400 hover:text-emerald-300 underline"
+                          >
+                            <span className="hidden sm:inline">View</span>
+                            <span className="sm:hidden">→</span>
+                          </Link>
                         )}
                       </div>
                     </td>
