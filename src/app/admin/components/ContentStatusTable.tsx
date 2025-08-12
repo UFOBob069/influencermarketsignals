@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore'
 
 interface Content {
   id: string
@@ -44,9 +44,15 @@ export default function ContentStatusTable() {
   const [content, setContent] = useState<Content[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [showAll, setShowAll] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [influencerFilter, setInfluencerFilter] = useState<string>('')
 
   useEffect(() => {
-    const q = query(collection(db, 'content'), orderBy('createdAt', 'desc'))
+    // Use limit(30) for initial load, then expand if needed
+    const q = showAll 
+      ? query(collection(db, 'content'), orderBy('createdAt', 'desc'))
+      : query(collection(db, 'content'), orderBy('createdAt', 'desc'), limit(30))
     
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
@@ -65,7 +71,7 @@ export default function ContentStatusTable() {
     )
 
     return () => unsubscribe()
-  }, [])
+  }, [showAll])
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows)
@@ -77,17 +83,72 @@ export default function ContentStatusTable() {
     setExpandedRows(newExpanded)
   }
 
+  // Filter content based on status and influencer
+  const filteredContent = content.filter(item => {
+    const matchesStatus = statusFilter === 'all' || item.status === statusFilter
+    const matchesInfluencer = !influencerFilter || 
+      (item.influencerName && item.influencerName.toLowerCase().includes(influencerFilter.toLowerCase()))
+    return matchesStatus && matchesInfluencer
+  })
+
+  // Get unique influencers for filter dropdown
+  const uniqueInfluencers = Array.from(new Set(content.map(item => item.influencerName).filter(Boolean)))
+
   if (loading) {
     return <div className="p-4 text-gray-400">Loading content status...</div>
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-white">Recent Content ({content.length})</h3>
-        <div className="text-sm text-gray-400">
-          Click any row to expand details
+      {/* Header with filters */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-white">
+            Recent Content ({filteredContent.length} of {content.length})
+          </h3>
+          <p className="text-sm text-gray-400">
+            {showAll ? 'Showing all content' : 'Showing last 30 items'}
+          </p>
         </div>
+        
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+          >
+            <option value="all">All Status</option>
+            <option value="complete">Complete</option>
+            <option value="processing">Processing</option>
+            <option value="error">Error</option>
+          </select>
+
+          {/* Influencer Filter */}
+          <select
+            value={influencerFilter}
+            onChange={(e) => setInfluencerFilter(e.target.value)}
+            className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+          >
+            <option value="">All Influencers</option>
+            {uniqueInfluencers.map(influencer => (
+              <option key={influencer} value={influencer}>{influencer}</option>
+            ))}
+          </select>
+
+          {/* Show All Toggle */}
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+          >
+            {showAll ? 'Show Recent 30' : 'Show All'}
+          </button>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="text-sm text-gray-400">
+        Click any row to expand details • Use filters to narrow down results
       </div>
       
       <div className="overflow-x-auto">
@@ -115,7 +176,7 @@ export default function ContentStatusTable() {
             </tr>
           </thead>
           <tbody className="bg-gray-900 divide-y divide-gray-700">
-            {content.map((item) => (
+            {filteredContent.map((item) => (
               <React.Fragment key={item.id}>
                 <tr className="hover:bg-gray-800 cursor-pointer" onClick={() => toggleRow(item.id)}>
                   <td className="px-4 py-4 whitespace-nowrap">
@@ -261,12 +322,19 @@ export default function ContentStatusTable() {
                       </div>
                     </td>
                   </tr>
-                                 )}
-               </React.Fragment>
-             ))}
-           </tbody>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
         </table>
       </div>
+
+      {/* No results message */}
+      {filteredContent.length === 0 && (
+        <div className="text-center py-8 text-gray-400">
+          No content matches the current filters.
+        </div>
+      )}
     </div>
   )
 }
