@@ -6,10 +6,15 @@ import ContentStatusTable from './components/ContentStatusTable'
 
 export default function AdminPage() {
   const { user } = useAuth()
-  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [youtubeUrls, setYoutubeUrls] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const [processingResults, setProcessingResults] = useState<Array<{
+    url: string
+    status: 'success' | 'error'
+    message: string
+  }>>([])
   
   // Pro status management
   const [proUid, setProUid] = useState('')
@@ -19,36 +24,91 @@ export default function AdminPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!youtubeUrl.trim()) return
+    if (!youtubeUrls.trim()) return
+
+    // Parse URLs from textarea (one per line)
+    const urls = youtubeUrls
+      .split('\n')
+      .map(url => url.trim())
+      .filter(url => url.length > 0)
+
+    if (urls.length === 0) {
+      setError('Please enter at least one YouTube URL')
+      return
+    }
 
     setIsSubmitting(true)
     setStatus('')
     setError('')
+    setProcessingResults([])
+
+    const results: Array<{
+      url: string
+      status: 'success' | 'error'
+      message: string
+    }> = []
 
     try {
-      setStatus('Fetching video data and transcript...')
+      setStatus(`Processing ${urls.length} video(s)...`)
       
-      const response = await fetch('/api/youtube/ingest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ youtubeUrl }),
-      })
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i]
+        setStatus(`Processing video ${i + 1} of ${urls.length}: ${url}`)
+        
+        try {
+          const response = await fetch('/api/youtube/ingest', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ youtubeUrl: url }),
+          })
 
-      const data = await response.json()
+          const data = await response.json()
 
-      if (!response.ok) {
-        if (response.status === 422) {
-          setError('No transcript available for this video. The video may have captions disabled or be too new to have captions available.')
-        } else {
-          setError(data.error || 'Failed to process video')
+          if (!response.ok) {
+            if (response.status === 422) {
+              results.push({
+                url,
+                status: 'error',
+                message: 'No transcript available for this video. The video may have captions disabled or be too new to have captions available.'
+              })
+            } else {
+              results.push({
+                url,
+                status: 'error',
+                message: data.error || 'Failed to process video'
+              })
+            }
+          } else {
+            results.push({
+              url,
+              status: 'success',
+              message: `Success! Transcript length: ${data.transcriptLength || 'Unknown'} characters`
+            })
+          }
+        } catch {
+          results.push({
+            url,
+            status: 'error',
+            message: 'Network error. Please try again.'
+          })
         }
-        return
+
+        // Update results after each video
+        setProcessingResults([...results])
+        
+        // Small delay between requests to avoid overwhelming the API
+        if (i < urls.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       }
 
-      setStatus(`Success! Video processed. Transcript length: ${data.transcriptLength || 'Unknown'} characters`)
-      setYoutubeUrl('')
+      const successCount = results.filter(r => r.status === 'success').length
+      const errorCount = results.filter(r => r.status === 'error').length
+      
+      setStatus(`Batch processing complete! ${successCount} successful, ${errorCount} failed.`)
+      setYoutubeUrls('')
       
     } catch {
       setError('Network error. Please try again.')
@@ -111,26 +171,31 @@ export default function AdminPage() {
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="youtubeUrl" className="block text-sm font-medium mb-2">
-                YouTube URL
+              <label htmlFor="youtubeUrls" className="block text-sm font-medium mb-2">
+                YouTube URLs (one per line)
               </label>
-              <input
-                type="url"
-                id="youtubeUrl"
-                value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <textarea
+                id="youtubeUrls"
+                value={youtubeUrls}
+                onChange={(e) => setYoutubeUrls(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=...
+https://www.youtube.com/watch?v=...
+https://www.youtube.com/watch?v=..."
+                rows={8}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                 required
               />
+              <p className="text-sm text-gray-400 mt-1">
+                Paste multiple YouTube URLs, one per line. Videos will be processed sequentially with a 1-second delay between each.
+              </p>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
             >
-              {isSubmitting ? 'Processing...' : 'Process Video'}
+              {isSubmitting ? 'Processing Videos...' : 'Process Videos'}
             </button>
           </form>
 
@@ -146,6 +211,24 @@ export default function AdminPage() {
               <p className="text-sm text-red-300">
                 You can try a different video or contact support if this persists.
               </p>
+            </div>
+          )}
+
+          {processingResults.length > 0 && (
+            <div className="mt-4 p-4 bg-gray-700 border border-gray-600 rounded-md">
+              <h3 className="text-lg font-semibold mb-3">Processing Results:</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {processingResults.map((result, index) => (
+                  <div key={index} className={`p-2 rounded text-sm ${
+                    result.status === 'success' 
+                      ? 'bg-green-900 text-green-200 border border-green-700' 
+                      : 'bg-red-900 text-red-200 border border-red-700'
+                  }`}>
+                    <div className="font-mono text-xs mb-1 truncate">{result.url}</div>
+                    <div>{result.message}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
