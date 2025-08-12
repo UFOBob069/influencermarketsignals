@@ -55,6 +55,7 @@ export default function Home() {
       </section>
 
       <SampleUnlockedDay />
+      <TestimonialsSection />
 
       <section className="py-12 md:py-16 border-t border-zinc-800">
         <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-6 text-zinc-300">
@@ -175,6 +176,56 @@ function LockedPreview({ label }: { label: string }) {
           <div className="text-2xl mb-2">🔒</div>
           <div className="text-sm text-zinc-300">Upgrade to See It Now</div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function TestimonialsSection() {
+  return (
+    <section className="py-12 md:py-16 border-t border-zinc-800">
+      <div className="max-w-6xl mx-auto px-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-8 md:mb-12">What Our Users Say</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          <TestimonialCard
+            name="Alex Chen"
+            title="Day Trader"
+            quote="I used to spend hours scrolling through YouTube trying to find what influencers were saying about stocks. Now I get it all in one place with sentiment analysis. Game changer!"
+            rating={5}
+          />
+          <TestimonialCard
+            name="Sarah Williams"
+            title="Portfolio Manager"
+            quote="The context and conviction levels are what make this different. I can see not just what was mentioned, but how confident the analyst is. That's priceless."
+            rating={5}
+          />
+          <TestimonialCard
+            name="Mike Rodriguez"
+            title="Retail Investor"
+            quote="Finally, I can hear the actual clips instead of just reading ticker lists. The notable timestamps save me so much time. Worth every penny."
+            rating={5}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function TestimonialCard({ name, title, quote, rating }: { name: string; title: string; quote: string; rating: number }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6">
+      <div className="flex items-center mb-4">
+        {[...Array(rating)].map((_, i) => (
+          <span key={i} className="text-yellow-400">★</span>
+        ))}
+      </div>
+      <p className="text-lg text-zinc-300 mb-4 italic">&ldquo;{quote}&rdquo;</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold text-white">{name}</div>
+          <div className="text-xs text-zinc-400">{title}</div>
+        </div>
+        <div className="text-2xl text-zinc-700">&rdquo;</div>
       </div>
     </div>
   )
