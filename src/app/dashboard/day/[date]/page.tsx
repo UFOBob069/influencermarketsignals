@@ -70,13 +70,14 @@ export default function DayPage({ params }: PageProps) {
     const getParams = async () => {
       const resolvedParams = await params
       const dateStr = resolvedParams.date // e.g., "2025-01-15"
-      // Parse the date in local timezone to avoid UTC issues
+      // Parse the date in Eastern timezone
       const [year, month, day] = dateStr.split('-').map(Number)
-      const date = new Date(year, month - 1, day) // month is 0-indexed
+      // Create date in Eastern timezone
+      const date = new Date(year, month - 1, day, 12, 0, 0) // Use noon to avoid DST issues
       console.log('Debug: Parsed URL date', {
         dateStr,
         parsedDate: date.toISOString(),
-        localDate: date.toLocaleDateString()
+        localDate: date.toLocaleDateString('en-US', { timeZone: 'America/New_York' })
       })
       setDayDate(date)
     }
@@ -92,12 +93,15 @@ export default function DayPage({ params }: PageProps) {
   const isLocked = (() => {
     if (!dayDate) return false
     
-    // Use simple date string comparison to avoid timezone issues
-    const today = new Date()
-    const todayStr = today.toISOString().split('T')[0] // YYYY-MM-DD
-    const dayDateStr = dayDate.toISOString().split('T')[0] // YYYY-MM-DD
+    // Use Eastern timezone for all date comparisons
+    const now = new Date()
+    const todayEastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const todayStr = todayEastern.toISOString().split('T')[0] // YYYY-MM-DD
     
-    // Calculate days difference using simple date arithmetic
+    const dayDateEastern = new Date(dayDate.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const dayDateStr = dayDateEastern.toISOString().split('T')[0] // YYYY-MM-DD
+    
+    // Calculate days difference using Eastern timezone dates
     const todayDate = new Date(todayStr)
     const dayDateOnly = new Date(dayDateStr)
     const diffTime = todayDate.getTime() - dayDateOnly.getTime()
@@ -162,8 +166,9 @@ export default function DayPage({ params }: PageProps) {
     const fetchDayData = async () => {
       if (!dayDate) return
 
-      // Use simple date string comparison
-      const dayDateStr = dayDate.toISOString().split('T')[0] // YYYY-MM-DD
+      // Use Eastern timezone for date comparison
+      const dayDateEastern = new Date(dayDate.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+      const dayDateStr = dayDateEastern.toISOString().split('T')[0] // YYYY-MM-DD
 
       try {
         const q = query(
@@ -203,8 +208,9 @@ export default function DayPage({ params }: PageProps) {
               return false
             }
             
-            // Use simple date string comparison
-            const docDateStr = docDate.toISOString().split('T')[0]
+            // Convert to Eastern timezone for comparison
+            const docDateEastern = new Date(docDate.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+            const docDateStr = docDateEastern.toISOString().split('T')[0]
             const isInRange = docDateStr === dayDateStr
             
             console.log('Debug: Doc date check', {
@@ -241,20 +247,25 @@ export default function DayPage({ params }: PageProps) {
   const formatDate = (date: Date | null) => {
     if (!date) return 'Loading...'
     
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(today.getDate() - 1)
+    // Use Eastern timezone for date comparisons
+    const now = new Date()
+    const todayEastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const yesterdayEastern = new Date(todayEastern)
+    yesterdayEastern.setDate(todayEastern.getDate() - 1)
     
-    if (date.toDateString() === today.toDateString()) {
+    const dateEastern = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    
+    if (dateEastern.toDateString() === todayEastern.toDateString()) {
       return 'Today'
-    } else if (date.toDateString() === yesterday.toDateString()) {
+    } else if (dateEastern.toDateString() === yesterdayEastern.toDateString()) {
       return 'Yesterday'
     } else {
-      return date.toLocaleDateString('en-US', { 
+      return dateEastern.toLocaleDateString('en-US', { 
         weekday: 'long', 
         year: 'numeric',
         month: 'long', 
-        day: 'numeric' 
+        day: 'numeric',
+        timeZone: 'America/New_York'
       })
     }
   }
@@ -266,9 +277,13 @@ export default function DayPage({ params }: PageProps) {
   }
 
   if (isLocked) {
-    const today = new Date()
-    const diffTime = today.getTime() - dayDate!.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    // Use Eastern timezone for date calculations
+    const now = new Date()
+    const todayEastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const dayDateEastern = new Date(dayDate!.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    
+    const diffTime = todayEastern.getTime() - dayDateEastern.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
     
     const isRecent = diffDays < 12
     
@@ -287,7 +302,8 @@ export default function DayPage({ params }: PageProps) {
                   weekday: 'long', 
                   year: 'numeric',
                   month: 'long', 
-                  day: 'numeric' 
+                  day: 'numeric',
+                  timeZone: 'America/New_York'
                 })}
               </p>
             </div>
@@ -394,7 +410,8 @@ export default function DayPage({ params }: PageProps) {
                {dayDate?.toLocaleDateString('en-US', { 
                  year: 'numeric',
                  month: 'short', 
-                 day: 'numeric' 
+                 day: 'numeric',
+                 timeZone: 'America/New_York'
                })}
              </div>
              {!isLocked && (
