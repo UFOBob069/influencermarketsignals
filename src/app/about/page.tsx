@@ -353,6 +353,29 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      {/* Disclaimer Section */}
+      <section className="py-12 border-t border-zinc-800">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4 text-zinc-300">Important Disclaimer</h3>
+            <div className="text-sm text-zinc-400 space-y-2">
+              <p>
+                <strong>Not Investment Advice:</strong> The information provided on Influencer Market Signals is for informational and educational purposes only. It is not intended to be, and should not be construed as, investment advice, financial advice, trading advice, or any other type of advice.
+              </p>
+              <p>
+                <strong>Do Your Own Research:</strong> All trading and investment decisions should be based on your own research, analysis, and judgment. We strongly encourage you to consult with qualified financial advisors, accountants, and legal professionals before making any investment decisions.
+              </p>
+              <p>
+                <strong>Past Performance:</strong> Past performance of any mentioned stocks, strategies, or influencers does not guarantee future results. The market can be unpredictable and all investments carry risk of loss.
+              </p>
+              <p>
+                <strong>No Guarantees:</strong> Influencer Market Signals makes no representations or warranties regarding the accuracy, completeness, or reliability of any information provided. We are not responsible for any losses or damages that may result from the use of this information.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   )
 }

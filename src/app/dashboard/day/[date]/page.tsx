@@ -92,20 +92,22 @@ export default function DayPage({ params }: PageProps) {
   const isLocked = (() => {
     if (!dayDate) return false
     
+    // Use simple date string comparison to avoid timezone issues
     const today = new Date()
-    // Reset time to start of day for accurate comparison
-    today.setHours(0, 0, 0, 0)
-    const dayDateStart = new Date(dayDate)
-    dayDateStart.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0] // YYYY-MM-DD
+    const dayDateStr = dayDate.toISOString().split('T')[0] // YYYY-MM-DD
     
-    const diffTime = today.getTime() - dayDateStart.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    // Calculate days difference using simple date arithmetic
+    const todayDate = new Date(todayStr)
+    const dayDateOnly = new Date(dayDateStr)
+    const diffTime = todayDate.getTime() - dayDateOnly.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
     
     // Pro users can see any date
     if (effectiveIsPro) {
       console.log('Debug: Pro user accessing:', {
-        requestedDate: dayDate.toISOString().split('T')[0],
-        today: today.toISOString().split('T')[0],
+        requestedDate: dayDateStr,
+        today: todayStr,
         dayIndex: diffDays,
         isPro,
         forcePro,
@@ -119,8 +121,8 @@ export default function DayPage({ params }: PageProps) {
     // Everything after 90 days is free for SEO
     if (diffDays > 90) {
       console.log('Debug: SEO free access:', {
-        requestedDate: dayDate.toISOString().split('T')[0],
-        today: today.toISOString().split('T')[0],
+        requestedDate: dayDateStr,
+        today: todayStr,
         dayIndex: diffDays,
         isPro,
         isLocked: false,
@@ -135,8 +137,8 @@ export default function DayPage({ params }: PageProps) {
     
     // Debug logging
     console.log('Debug date comparison:', {
-      requestedDate: dayDate.toISOString().split('T')[0],
-      today: today.toISOString().split('T')[0],
+      requestedDate: dayDateStr,
+      today: todayStr,
       dayIndex: diffDays,
       isPro,
       isLocked: result,
@@ -160,10 +162,8 @@ export default function DayPage({ params }: PageProps) {
     const fetchDayData = async () => {
       if (!dayDate) return
 
-      const start = new Date(dayDate)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start)
-      end.setDate(start.getDate() + 1)
+      // Use simple date string comparison
+      const dayDateStr = dayDate.toISOString().split('T')[0] // YYYY-MM-DD
 
       try {
         const q = query(
@@ -175,9 +175,7 @@ export default function DayPage({ params }: PageProps) {
         
         // Filter by date after fetching since publishedAt is a string
         console.log('Debug: Date filtering', {
-          requestedDate: dayDate.toISOString().split('T')[0],
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
+          requestedDate: dayDateStr,
           totalDocs: docs.length
         })
         
@@ -205,16 +203,17 @@ export default function DayPage({ params }: PageProps) {
               return false
             }
             
-            const isInRange = docDate >= start && docDate < end
+            // Use simple date string comparison
+            const docDateStr = docDate.toISOString().split('T')[0]
+            const isInRange = docDateStr === dayDateStr
             
             console.log('Debug: Doc date check', {
               docId: doc.id,
               publishedAt: doc.publishedAt,
               parsedDate: docDate.toISOString(),
-              localDate: docDate.toLocaleDateString(),
-              isInRange,
-              start: start.toLocaleDateString(),
-              end: end.toLocaleDateString()
+              docDateStr,
+              requestedDate: dayDateStr,
+              isInRange
             })
             
             return isInRange
