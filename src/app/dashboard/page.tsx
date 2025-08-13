@@ -126,8 +126,25 @@ export default function DashboardPage() {
             
             if (!dateField) return false
             
-            const docDate = new Date(dateField)
-            return docDate >= start && docDate < end
+            // Parse the date field
+            let docDate: Date
+            if (typeof dateField === 'string') {
+              if (dateField.includes('T') && dateField.includes('Z')) {
+                // ISO timestamp format like "2025-08-13T01:24:46.071Z"
+                docDate = new Date(dateField)
+              } else {
+                // Other formats
+                docDate = new Date(dateField)
+              }
+            } else {
+              docDate = new Date(dateField)
+            }
+            
+            // Convert to Eastern timezone for comparison
+            const docDateEastern = new Date(docDate.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+            const docDateStart = new Date(docDateEastern.getFullYear(), docDateEastern.getMonth(), docDateEastern.getDate())
+            
+            return docDateStart >= start && docDateStart < end
           })
 
           const aggregates = aggregateMentions(filteredDocs)

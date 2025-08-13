@@ -223,7 +223,10 @@ export default function DayPage({ params }: PageProps) {
           try {
             // Handle different date formats
             if (typeof dateField === 'string') {
-              if (dateField.includes(',')) {
+              if (dateField.includes('T') && dateField.includes('Z')) {
+                // ISO timestamp format like "2025-08-13T01:24:46.071Z"
+                docDate = new Date(dateField)
+              } else if (dateField.includes(',')) {
                 // Format like "Aug 10, 2025" - parse in Eastern timezone
                 const [monthDay, year] = dateField.split(', ')
                 const [month, day] = monthDay.split(' ')
@@ -261,6 +264,7 @@ export default function DayPage({ params }: PageProps) {
                 publishedAt: doc.publishedAt,
                 updatedAt: doc.updatedAt,
                 usedField: dateField,
+                originalDate: docDate.toISOString(),
                 docDateStart: docDateStart.toISOString(),
                 requestedDateStart: requestedDateStart.toISOString()
               })
