@@ -154,21 +154,33 @@ export default function DashboardPage() {
 
 
   const formatDate = (date: Date) => {
+    // Use Eastern timezone for all date operations
     const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(today.getDate() - 1)
+    const todayEastern = new Date(today.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const yesterdayEastern = new Date(todayEastern)
+    yesterdayEastern.setDate(todayEastern.getDate() - 1)
     
-    if (date.toDateString() === today.toDateString()) {
+    const dateEastern = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    
+    if (dateEastern.toDateString() === todayEastern.toDateString()) {
       return 'Today'
-    } else if (date.toDateString() === yesterday.toDateString()) {
+    } else if (dateEastern.toDateString() === yesterdayEastern.toDateString()) {
       return 'Yesterday'
     } else {
-      return date.toLocaleDateString('en-US', { 
+      return dateEastern.toLocaleDateString('en-US', { 
         weekday: 'short', 
         month: 'short', 
-        day: 'numeric' 
+        day: 'numeric',
+        timeZone: 'America/New_York'
       })
     }
+  }
+
+  // Helper function to format date for URL in Eastern timezone
+  const formatDateForUrl = (date: Date) => {
+    // Get the date in Eastern timezone by using toLocaleDateString with timezone
+    const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) // en-CA gives YYYY-MM-DD format
+    return dateStr
   }
 
   return (
@@ -319,7 +331,7 @@ export default function DashboardPage() {
                   )}
                   {!day.isLocked && (
                     <Link
-                      href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                      href={`/dashboard/day/${formatDateForUrl(day.date)}`}
                       className="text-xs text-emerald-400 hover:text-emerald-300 underline"
                     >
                       View Details →
@@ -399,7 +411,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-1 md:gap-2">
                         {!day.isLocked ? (
                           <Link
-                            href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                            href={`/dashboard/day/${formatDateForUrl(day.date)}`}
                             className={`text-sm font-medium ${
                               selectedDayIndex === day.dayIndex ? 'text-white' : 'text-zinc-300'
                             } hover:text-white transition-colors`}
@@ -486,7 +498,7 @@ export default function DashboardPage() {
                         )}
                         {!day.isLocked && (
                           <Link
-                            href={`/dashboard/day/${day.date.toISOString().split('T')[0]}`}
+                            href={`/dashboard/day/${formatDateForUrl(day.date)}`}
                             className="text-xs text-emerald-400 hover:text-emerald-300 underline"
                           >
                             <span className="hidden sm:inline">View</span>
@@ -512,7 +524,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Content Preview</h2>
               <Link
-                href={`/dashboard/day/${days[selectedDayIndex]?.date.toISOString().split('T')[0]}`}
+                href={`/dashboard/day/${formatDateForUrl(days[selectedDayIndex]?.date)}`}
                 className="text-blue-400 hover:text-blue-300 text-sm"
               >
                 View Full Details →
@@ -544,7 +556,7 @@ export default function DashboardPage() {
             
             {!isLocked(selectedDayIndex) && (
               <Link
-                href={`/dashboard/day/${days[selectedDayIndex]?.date.toISOString().split('T')[0]}`}
+                href={`/dashboard/day/${formatDateForUrl(days[selectedDayIndex]?.date)}`}
                 className="bg-zinc-950 border border-zinc-800 rounded-lg p-6 hover:border-zinc-600 transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
