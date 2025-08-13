@@ -28,6 +28,7 @@ interface ContentDoc {
   episodeTitle?: string
   createdAt: string
   publishedAt?: string
+  updatedAt?: string
   extractedMentions?: Mention[]
   highlights?: { startSec: number; endSec?: number; text: string }[]
   notableTimestamps?: string | Array<{ time: number; description: string }>
@@ -110,8 +111,22 @@ export default function DashboardPage() {
           
           // Filter by date after fetching since publishedAt is a string
           const filteredDocs = docs.filter(doc => {
-            if (!doc.publishedAt) return false
-            const docDate = new Date(doc.publishedAt)
+            if (!doc.publishedAt && !doc.updatedAt) return false
+            
+            // Determine which date field to use
+            let dateField = doc.publishedAt
+            if (doc.publishedAt && (
+              doc.publishedAt.includes('Streamed live') || 
+              doc.publishedAt.includes('ago') ||
+              doc.publishedAt.includes('Live')
+            )) {
+              // Use updatedAt for live stream content
+              dateField = doc.updatedAt || doc.createdAt
+            }
+            
+            if (!dateField) return false
+            
+            const docDate = new Date(dateField)
             return docDate >= start && docDate < end
           })
 

@@ -29,6 +29,7 @@ interface ContentDoc {
   episodeTitle?: string
   createdAt: string
   publishedAt?: string
+  updatedAt?: string
   extractedMentions?: Mention[]
   highlights?: { startSec: number; endSec?: number; text: string }[]
   notableTimestamps?: Array<{ time: number; description: string }>
@@ -181,52 +182,102 @@ export default function DayPage({ params }: PageProps) {
         // Filter by date after fetching since publishedAt is a string
         console.log('Debug: Date filtering', {
           requestedDate: dayDateStr,
-          totalDocs: docs.length
+          totalDocs: docs.length,
+          sampleDocs: docs.slice(0, 3).map(d => ({ id: d.id, publishedAt: d.publishedAt }))
         })
         
         const filteredDocs = docs.filter(doc => {
-          if (!doc.publishedAt) return false
+          if (!doc.publishedAt && !doc.updatedAt) {
+            console.log('Debug: No publishedAt or updatedAt for doc:', doc.id)
+            return false
+          }
           
-          // Handle different date formats more robustly
+          // Normalize the requested date to start of day in Eastern timezone
+          const requestedDateStart = new Date(dayDateStr + 'T00:00:00')
+          
+          // Determine which date field to use
+          let dateField = doc.publishedAt
+          if (doc.publishedAt && (
+            doc.publishedAt.includes('Streamed live') || 
+            doc.publishedAt.includes('ago') ||
+            doc.publishedAt.includes('Live')
+          )) {
+            // Use updatedAt for live stream content
+            dateField = doc.updatedAt || doc.createdAt
+            console.log('Debug: Using updatedAt for live stream:', {
+              docId: doc.id,
+              publishedAt: doc.publishedAt,
+              updatedAt: doc.updatedAt,
+              createdAt: doc.createdAt,
+              usingField: dateField
+            })
+          }
+          
+          if (!dateField) {
+            console.log('Debug: No valid date field for doc:', doc.id)
+            return false
+          }
+          
+          // Parse the date
           let docDate: Date
           try {
-            if (doc.publishedAt.includes(',')) {
-              // Format like "Aug 10, 2025"
-              docDate = new Date(doc.publishedAt)
-            } else if (doc.publishedAt.includes('-')) {
-              // Format like "2025-08-10"
-              const [year, month, day] = doc.publishedAt.split('-').map(Number)
-              docDate = new Date(year, month - 1, day)
+            // Handle different date formats
+            if (typeof dateField === 'string') {
+              if (dateField.includes(',')) {
+                // Format like "Aug 10, 2025" - parse in Eastern timezone
+                const [monthDay, year] = dateField.split(', ')
+                const [month, day] = monthDay.split(' ')
+                const monthIndex = new Date(Date.parse(month + " 1, 2000")).getMonth()
+                docDate = new Date(parseInt(year), monthIndex, parseInt(day))
+              } else if (dateField.includes('-')) {
+                // Format like "2025-08-10"
+                const [year, month, day] = dateField.split('-').map(Number)
+                docDate = new Date(year, month - 1, day)
+              } else {
+                // Try parsing as is
+                docDate = new Date(dateField)
+              }
             } else {
-              // Try parsing as is
-              docDate = new Date(doc.publishedAt)
+              // If it's already a Date object
+              docDate = new Date(dateField)
             }
             
             // Check if the date is valid
             if (isNaN(docDate.getTime())) {
-              console.warn('Invalid date found:', doc.publishedAt, 'for doc:', doc.id)
+              console.warn('Invalid date found:', dateField, 'for doc:', doc.id)
               return false
             }
             
-            // Convert to Eastern timezone for comparison
+            // Normalize doc date to start of day in Eastern timezone
             const docDateEastern = new Date(docDate.toLocaleString('en-US', { timeZone: 'America/New_York' }))
-            const docDateStr = docDateEastern.toISOString().split('T')[0]
-            const isInRange = docDateStr === dayDateStr
+            const docDateStart = new Date(docDateEastern.getFullYear(), docDateEastern.getMonth(), docDateEastern.getDate())
             
-            console.log('Debug: Doc date check', {
-              docId: doc.id,
-              publishedAt: doc.publishedAt,
-              parsedDate: docDate.toISOString(),
-              docDateStr,
-              requestedDate: dayDateStr,
-              isInRange
-            })
+            // Compare dates
+            const isInRange = docDateStart.getTime() === requestedDateStart.getTime()
+            
+            if (isInRange) {
+              console.log('Debug: Found matching doc:', {
+                docId: doc.id,
+                publishedAt: doc.publishedAt,
+                updatedAt: doc.updatedAt,
+                usedField: dateField,
+                docDateStart: docDateStart.toISOString(),
+                requestedDateStart: requestedDateStart.toISOString()
+              })
+            }
             
             return isInRange
           } catch (error) {
-            console.error('Error parsing date:', doc.publishedAt, 'for doc:', doc.id, error)
+            console.error('Error parsing date:', dateField, 'for doc:', doc.id, error)
             return false
           }
+        })
+        
+        console.log('Debug: Filtering results', {
+          requestedDate: dayDateStr,
+          totalDocs: docs.length,
+          filteredDocs: filteredDocs.length,
+          filteredDocIds: filteredDocs.map(d => d.id)
         })
         
         setContent(filteredDocs)
