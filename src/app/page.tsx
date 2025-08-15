@@ -151,7 +151,9 @@ function UnlockedPreview() {
             <div className="font-semibold">{x.t}</div>
             <span className={`text-xs ${x.s==='bullish'?'text-emerald-400':x.s==='bearish'?'text-red-400':'text-zinc-400'}`}>{x.s}</span>
           </div>
-          <div className="mt-2 h-2 bg-zinc-800 rounded"><div className="h-2 bg-emerald-500 w-3/5 rounded" /></div>
+          <div className="mt-2 h-2 bg-zinc-800 rounded">
+            <div className={`h-2 w-3/5 rounded ${x.s==='bullish'?'bg-emerald-500':x.s==='bearish'?'bg-red-500':'bg-zinc-700'}`} />
+          </div>
           <button className="mt-2 text-xs underline text-zinc-300">View details</button>
         </div>
       ))}
