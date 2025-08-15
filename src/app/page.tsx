@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Script from 'next/script'
 
 export default function Home() {
   return (
@@ -64,6 +65,8 @@ export default function Home() {
           <TrustItem label="Ticker + sentiment extraction" />
         </div>
       </section>
+
+      <TwitterSection />
     </main>
   )
 }
@@ -228,5 +231,47 @@ function TestimonialCard({ name, title, quote, rating }: { name: string; title: 
         <div className="text-2xl text-zinc-700">&rdquo;</div>
       </div>
     </div>
+  )
+}
+
+function TwitterSection() {
+  return (
+    <section className="py-14 md:py-20 border-t border-zinc-800">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-950 to-black p-6 md:p-8">
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-2xl md:text-3xl font-bold">Follow @IMS_Insights</h2>
+            <p className="text-zinc-400 mt-2">Real-time updates, fresh signals, and feature drops.</p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <a
+                href="https://twitter.com/intent/follow?screen_name=IMS_Insights"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2 rounded-md bg-white text-black font-semibold hover:bg-zinc-200 transition"
+              >
+                Follow on X
+              </a>
+              <a
+                href="https://twitter.com/IMS_Insights"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2 rounded-md border border-zinc-700 text-zinc-200 hover:border-zinc-500 transition"
+              >
+                Open Profile →
+              </a>
+            </div>
+          </div>
+
+          {/* Simpler, clean CTA — removing the embed which can look odd if the X widget is blocked */}
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-start-2">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-center">
+                <div className="text-zinc-300 text-sm">Get signal highlights, product updates, and market recaps.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }

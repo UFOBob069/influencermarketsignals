@@ -609,12 +609,22 @@ export default function DayPage({ params }: PageProps) {
                   
                   <div className="mb-3">
                     <div className="text-sm text-zinc-400 mb-1">{ticker.count} mentions</div>
-                    <div className="h-2 bg-zinc-800 rounded">
-                      <div
-                        className="h-2 rounded bg-emerald-500"
-                        style={{ width: `${Math.min(100, ticker.count * 8)}%` }}
-                      />
-                    </div>
+                    {(() => {
+                      const bullish = ticker.mentions.filter(m => m.sentiment === 'bullish').length
+                      const bearish = ticker.mentions.filter(m => m.sentiment === 'bearish').length
+                      const neutral = ticker.mentions.filter(m => m.sentiment === 'neutral').length
+                      const total = Math.max(1, bullish + bearish + neutral)
+                      const bullPct = (bullish / total) * 100
+                      const neutralPct = (neutral / total) * 100
+                      const bearPct = (bearish / total) * 100
+                      return (
+                        <div className="h-2 bg-zinc-800 rounded overflow-hidden flex">
+                          <div className="h-2 bg-emerald-500" style={{ width: `${bullPct}%` }} />
+                          <div className="h-2 bg-zinc-600" style={{ width: `${neutralPct}%` }} />
+                          <div className="h-2 bg-red-500" style={{ width: `${bearPct}%` }} />
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {ticker.mentions.length > 0 && (
