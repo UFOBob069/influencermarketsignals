@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 
 export default function Home() {
   return (
@@ -10,12 +11,17 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-8 md:gap-10 items-center">
             <div>
               <h1 className="text-3xl md:text-4xl lg:text-6xl font-extrabold leading-tight">
-                Hear What Top Finance Influencers Are Saying About Stocks
+                Same‑Day Signals from 100+ Top Finance Influencers
               </h1>
               <p className="text-base md:text-lg lg:text-2xl text-zinc-300 mt-4 md:mt-6">
-                We scan 100+ finance voices to find the day&apos;s most-mentioned stocks — and let you hear the exact clips.
+                Track the tickers experts talk about — with bullish/bearish sentiment and the exact clips to hear it yourself.
               </p>
-              <p className="text-sm text-zinc-400 mt-2">
+              <ul className="mt-4 md:mt-6 space-y-2 text-zinc-300">
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">✓</span><span>Same‑day access to 100+ top finance influencers</span></li>
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">✓</span><span>Bullish / bearish / neutral sentiment per mention</span></li>
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">✓</span><span>Jump to notable moments with timestamps</span></li>
+              </ul>
+              <p className="text-sm text-zinc-400 mt-3">
                 Updated daily. Free users see signals from 14 days ago.
               </p>
               <div className="mt-6 md:mt-8 space-y-3 md:space-y-0 md:flex md:flex-wrap md:gap-4">
@@ -23,7 +29,7 @@ export default function Home() {
                   href="/dashboard?d=13"
                   className="block w-full md:w-auto px-6 py-3 rounded-md bg-white text-black font-semibold hover:bg-zinc-200 transition text-center"
                 >
-                  Show Me Today&apos;s Signals
+                  See Today&apos;s Signals
                 </Link>
                 <Link
                   href="/signup"
@@ -58,12 +64,16 @@ export default function Home() {
       <TestimonialsSection />
 
       <section className="py-12 md:py-16 border-t border-zinc-800">
-        <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-6 text-zinc-300">
-          <TrustItem label="Professionals use daily" />
-          <TrustItem label="Sentiment analysis & insights" />
-          <TrustItem label="Ticker + sentiment extraction" />
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <TrustItem label="Same‑day signals" sub="From 100+ top finance influencers" />
+            <TrustItem label="Hear the actual clips" sub="Jump straight to timestamps" />
+            <TrustItem label="Clear sentiment" sub="Bullish • Bearish • Neutral" />
+          </div>
         </div>
       </section>
+
+      <FreeTrialCta />
 
       <TwitterSection />
     </main>
@@ -118,10 +128,14 @@ function StatCard({ title, value, sub }: { title: string; value: string; sub?: s
   )
 }
 
-function TrustItem({ label }: { label: string }) {
+function TrustItem({ label, sub }: { label: string; sub?: string }) {
   return (
-    <div className="text-center md:text-left">
-      <div className="text-lg font-semibold mb-2">✓ {label}</div>
+    <div className="flex items-start gap-3 p-4 rounded-lg border border-zinc-800 bg-zinc-950">
+      <div className="h-6 w-6 rounded-full bg-emerald-600/15 text-emerald-400 flex items-center justify-center">✓</div>
+      <div>
+        <div className="text-lg font-semibold">{label}</div>
+        {sub && <div className="text-sm text-zinc-400 mt-1">{sub}</div>}
+      </div>
     </div>
   )
 }
@@ -232,6 +246,41 @@ function TestimonialCard({ name, title, quote, rating }: { name: string; title: 
         <div className="text-2xl text-zinc-700">&rdquo;</div>
       </div>
     </div>
+  )
+}
+
+function FreeTrialCta() {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className="py-12 md:py-16 border-t border-zinc-800">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-6 md:p-8 text-center">
+          <h3 className="text-2xl md:text-3xl font-bold mb-2">Start Your 7‑Day Free Trial</h3>
+          <p className="text-zinc-400 mb-6">See today’s market‑moving mentions with sentiment and clips.</p>
+          <div className="flex items-center justify-center gap-3">
+            <a href="/signup" className="px-6 py-3 rounded-md bg-white text-black font-semibold hover:bg-zinc-200">Start Free Trial</a>
+            <button onClick={() => setOpen(true)} className="px-6 py-3 rounded-md border border-zinc-700 text-zinc-200 hover:border-zinc-500">What’s included?</button>
+          </div>
+        </div>
+      </div>
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+          <div className="max-w-lg w-full bg-zinc-950 border border-zinc-800 rounded-xl p-6" onClick={(e) => e.stopPropagation()}>
+            <h4 className="text-xl font-semibold mb-3">What you get in the trial</h4>
+            <ul className="space-y-2 text-zinc-300 mb-6">
+              <li>✓ Same‑day access to all mentions</li>
+              <li>✓ Bullish/bearish/neutral sentiment per mention</li>
+              <li>✓ Notable moments with timestamps and links</li>
+              <li>✓ Cancel anytime</li>
+            </ul>
+            <div className="flex items-center justify-end gap-3">
+              <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-300">Maybe later</button>
+              <a href="/signup" className="px-5 py-2 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700">Start Free Trial</a>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 

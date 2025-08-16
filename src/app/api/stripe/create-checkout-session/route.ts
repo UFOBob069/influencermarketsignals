@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
         },
       ],
       mode: 'subscription',
+      allow_promotion_codes: true,
       success_url: `${baseUrl}/dashboard?success=true`,
       cancel_url: `${baseUrl}/pricing?canceled=true`,
       customer_email: email,
