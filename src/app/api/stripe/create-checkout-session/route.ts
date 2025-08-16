@@ -26,16 +26,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine price ID based on plan type
-    const priceId = planType === 'annual' 
-      ? process.env.STRIPE_ANNUAL_PRICE_ID 
+    const priceId = planType === 'annual'
+      ? process.env.STRIPE_ANNUAL_PRICE_ID
       : process.env.STRIPE_MONTHLY_PRICE_ID
 
     if (!priceId) {
+      console.error('Stripe Price ID missing', {
+        planType,
+        hasMonthly: Boolean(process.env.STRIPE_MONTHLY_PRICE_ID),
+        hasAnnual: Boolean(process.env.STRIPE_ANNUAL_PRICE_ID)
+      })
       return NextResponse.json(
         { error: 'Price ID not configured' },
         { status: 500 }
       )
     }
+
+    // Resolve base URL (works locally and in prod if env is missing)
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || req.nextUrl.origin
 
     // Create a checkout session for the subscription
     const session = await stripe.checkout.sessions.create({
@@ -47,8 +55,8 @@ export async function POST(req: NextRequest) {
         },
       ],
       mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/pricing?canceled=true`,
+      success_url: `${baseUrl}/dashboard?success=true`,
+      cancel_url: `${baseUrl}/pricing?canceled=true`,
       customer_email: email,
       metadata: {
         userId: userId,

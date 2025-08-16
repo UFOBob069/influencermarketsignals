@@ -846,7 +846,7 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
             Maybe later
           </button>
           <Link
-            href="#"
+            href="/pricing"
             className="px-4 py-2 rounded-md bg-white text-black font-semibold"
           >
             Upgrade — $49/mo
