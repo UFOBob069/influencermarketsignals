@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/firebase'
-import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import OpenAI from 'openai'
 import { extractVideoId, fetchTranscriptCascade } from '@/lib/fetchTranscript'
+import { contentDocGet, contentDocUpdate } from '@/lib/serverFirestoreContent'
 
 // Check if OpenAI API key is available
 if (!process.env.OPENAI_API_KEY) {
@@ -26,16 +25,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'contentId is required' }, { status: 400 })
     }
 
-    // Get content document
-    const contentRef = doc(db, 'content', contentId)
-    const contentDoc = await getDoc(contentRef)
-    
-    if (!contentDoc.exists()) {
+    const contentSnap = await contentDocGet(contentId)
+
+    if (!contentSnap.exists || !contentSnap.data) {
       console.error('Content not found:', contentId)
       return NextResponse.json({ error: 'Content not found' }, { status: 404 })
     }
 
-    const content = contentDoc.data()
+    const content = contentSnap.data
     console.log('Content data:', content)
     console.log('Video ID from content:', content.videoId)
     console.log('Video ID type:', typeof content.videoId)
@@ -53,7 +50,7 @@ export async function POST(request: NextRequest) {
     
     try {
       // mark as processing
-      await updateDoc(contentRef, { status: 'processing', updatedAt: new Date().toISOString() })
+      await contentDocUpdate(contentId, { status: 'processing', updatedAt: new Date().toISOString() })
 
       // Use existing transcript or try to fetch automatically
       let transcriptText: string = content.transcript || ''
@@ -268,7 +265,7 @@ Your goal: help a reader jump directly to the exact moments in the episode where
 
       // Update Firestore with generated content
       console.log('Updating Firestore...')
-      await updateDoc(contentRef, {
+      await contentDocUpdate(contentId, {
         status: 'complete',
         blogArticle: blogArticle.choices[0].message.content,
         tweetThread: tweetThread.choices[0].message.content,
@@ -286,7 +283,7 @@ Your goal: help a reader jump directly to the exact moments in the episode where
       
       // Update Firestore with error status
       try {
-        await updateDoc(contentRef, {
+        await contentDocUpdate(contentId, {
           status: 'error',
           error: error instanceof Error ? error.message : 'Unknown error occurred',
           updatedAt: new Date().toISOString(),
