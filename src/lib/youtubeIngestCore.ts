@@ -55,16 +55,18 @@ export type IngestYoutubeResult =
   | { ok: false; error: string; status?: number }
 
 /**
- * Fetches transcript + metadata, creates `content` doc, triggers LLM processing.
+ * Fetches transcript + metadata (unless `transcript` is pre-supplied, e.g. from a home runner),
+ * creates `content` doc, triggers LLM processing.
  */
 export async function ingestYoutubeWatchUrl(
   youtubeUrl: string,
-  opts: { baseUrl: string }
+  opts: { baseUrl: string; transcript?: string }
 ): Promise<IngestYoutubeResult> {
   const videoId = extractVideoId(youtubeUrl)
   if (!videoId) return { ok: false, error: 'Invalid YouTube URL', status: 400 }
 
-  const transcript = await fetchTranscriptCascade(videoId)
+  const provided = opts.transcript?.trim()
+  const transcript = provided && provided.length > 0 ? provided : await fetchTranscriptCascade(videoId)
   if (!transcript) {
     return {
       ok: false,
