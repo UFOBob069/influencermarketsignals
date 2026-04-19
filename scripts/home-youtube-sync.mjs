@@ -6,10 +6,15 @@
  *   Args: C:\path\to\influencermarketsignals\scripts\home-youtube-sync.mjs
  *   Start in: C:\path\to\influencermarketsignals
  *
- * Env (in .env.local next to repo, or system env):
- *   YOUTUBE_API_KEY
- *   INGEST_WEBHOOK_URL   = https://YOUR-APP.vercel.app   (no trailing slash ok)
- *   INGEST_WEBHOOK_SECRET = same value as on Vercel (INGEST_WEBHOOK_SECRET)
+ * Env (repo-root `.env.local` is loaded automatically):
+ *   YOUTUBE_API_KEY or YOUTUBE_DATA_API_KEY — YouTube Data API v3
+ *
+ * Then **one** of these ingest modes:
+ *   A) No webhook — set FIREBASE_SERVICE_ACCOUNT_JSON (same JSON string as on Vercel) and
+ *      NEXT_PUBLIC_BASE_URL (https://your-app.vercel.app). Writes `content` locally via Admin SDK
+ *      and POSTs to your site’s /api/process-content.
+ *   B) Webhook — INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET (same secret as Vercel INGEST_WEBHOOK_SECRET).
+ *
  * Optional: HOME_SYNC_MAX_INGESTS (default 15), HOME_SYNC_PER_CHANNEL (default 25),
  *   CHANNEL_SYNC_MIN_DURATION_SECONDS (default 480 = 8 minutes)
  *
@@ -21,15 +26,22 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+const ENV_LOCAL_PATH = path.join(__dirname, '..', '.env.local')
+
 function loadEnvLocal() {
-  const p = path.join(__dirname, '..', '.env.local')
-  if (!fs.existsSync(p)) return
-  for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
+  if (!fs.existsSync(ENV_LOCAL_PATH)) {
+    console.warn('No .env.local found at:', ENV_LOCAL_PATH)
+    return
+  }
+  let raw = fs.readFileSync(ENV_LOCAL_PATH, 'utf8')
+  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1)
+  for (const line of raw.split(/\r?\n/)) {
     const t = line.trim()
     if (!t || t.startsWith('#')) continue
     const i = t.indexOf('=')
     if (i === -1) continue
-    const k = t.slice(0, i).trim()
+    let k = t.slice(0, i).trim().replace(/^\uFEFF/, '')
+    if (/^export\s+/i.test(k)) k = k.replace(/^export\s+/i, '').trim()
     let v = t.slice(i + 1).trim()
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
       v = v.slice(1, -1)
@@ -40,15 +52,29 @@ function loadEnvLocal() {
 
 loadEnvLocal()
 
-const YT_KEY = process.env.YOUTUBE_API_KEY
+const YT_KEY = process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY
 const WEBHOOK = process.env.INGEST_WEBHOOK_URL?.replace(/\/$/, '')
 const WH_SECRET = process.env.INGEST_WEBHOOK_SECRET
+const SA_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+const SITE_BASE = (process.env.NEXT_PUBLIC_BASE_URL || process.env.SITE_URL || '').replace(/\/$/, '')
 const MAX_PER_RUN = Number(process.env.HOME_SYNC_MAX_INGESTS ?? 15)
 const PER_CHANNEL = Number(process.env.HOME_SYNC_PER_CHANNEL ?? 25)
 const MIN_DURATION_SEC = Number(process.env.CHANNEL_SYNC_MIN_DURATION_SECONDS ?? 480)
 
-if (!YT_KEY || !WEBHOOK || !WH_SECRET) {
-  console.error('Set YOUTUBE_API_KEY, INGEST_WEBHOOK_URL, and INGEST_WEBHOOK_SECRET')
+/** Prefer Firebase direct ingest when configured (no webhook). */
+const useFirebase = !!(SA_JSON && SITE_BASE)
+const useWebhook = !!(WEBHOOK && WH_SECRET) && !useFirebase
+
+if (!YT_KEY) {
+  console.error('Missing YouTube key: set YOUTUBE_API_KEY or YOUTUBE_DATA_API_KEY in .env.local')
+  console.error('Looked for .env.local at:', ENV_LOCAL_PATH)
+  process.exit(1)
+}
+
+if (!useFirebase && !useWebhook) {
+  console.error('Add one ingest setup to .env.local:')
+  console.error('  Option A (no webhook): FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL')
+  console.error('  Option B: INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET')
   process.exit(1)
 }
 
@@ -123,6 +149,72 @@ function loadChannels() {
   return channels
 }
 
+let firestoreDb = null
+
+async function getFirestoreDb() {
+  if (firestoreDb) return firestoreDb
+  const { initializeApp, cert, getApps } = await import('firebase-admin/app')
+  const { getFirestore } = await import('firebase-admin/firestore')
+  if (!getApps().length) {
+    initializeApp({ credential: cert(JSON.parse(SA_JSON)) })
+  }
+  firestoreDb = getFirestore()
+  return firestoreDb
+}
+
+async function firebaseVideoExists(db, videoId) {
+  const q = await db.collection('content').where('videoId', '==', videoId).limit(1).get()
+  return !q.empty
+}
+
+/**
+ * @returns {{ contentId: string } | { skipped: true }}
+ */
+async function pushIngest(youtubeUrl, transcript, videoId) {
+  if (useFirebase) {
+    const db = await getFirestoreDb()
+    if (await firebaseVideoExists(db, videoId)) return { skipped: true }
+    const oembed = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl)}&format=json`
+    ).then((r) => (r.ok ? r.json() : null))
+    const ref = await db.collection('content').add({
+      youtubeUrl,
+      videoId,
+      transcript,
+      influencerName: oembed?.author_name || null,
+      platform: 'YouTube',
+      sourceUrl: youtubeUrl,
+      episodeTitle: oembed?.title || null,
+      status: 'processing',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    const pr = await fetch(`${SITE_BASE}/api/process-content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentId: ref.id }),
+    })
+    if (!pr.ok) {
+      const errText = await pr.text()
+      throw new Error(`process-content ${pr.status}: ${errText.slice(0, 300)}`)
+    }
+    return { contentId: ref.id }
+  }
+
+  const r = await fetch(`${WEBHOOK}/api/youtube/ingest-webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${WH_SECRET}`,
+    },
+    body: JSON.stringify({ youtubeUrl, transcript }),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.error || `webhook ${r.status}`)
+  if (data.skipped) return { skipped: true }
+  return { contentId: data.contentId }
+}
+
 async function searchChannel(cid, publishedAfterIso) {
   const base = 'https://www.googleapis.com/youtube/v3/search'
   const makeParams = (extra = {}) => {
@@ -157,6 +249,9 @@ async function searchChannel(cid, publishedAfterIso) {
 }
 
 async function main() {
+  console.log(
+    useFirebase ? `Ingest: Firebase → ${SITE_BASE}/api/process-content` : `Ingest: webhook → ${WEBHOOK}`
+  )
   const state = loadState()
   const publishedAfterIso = publishedAfterFromState(state)
   const publishedAfterMs = new Date(publishedAfterIso).getTime()
@@ -205,24 +300,18 @@ async function main() {
     if (text.length < 40) continue
 
     const youtubeUrl = `https://www.youtube.com/watch?v=${vid}`
-    const r = await fetch(`${WEBHOOK}/api/youtube/ingest-webhook`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${WH_SECRET}`,
-      },
-      body: JSON.stringify({ youtubeUrl, transcript: text }),
-    })
-    const data = await r.json().catch(() => ({}))
-    if (!r.ok) {
-      console.error('webhook failed', vid, r.status, data)
+    let out
+    try {
+      out = await pushIngest(youtubeUrl, text, vid)
+    } catch (e) {
+      console.error('ingest failed', vid, e?.message || e)
       continue
     }
-    if (data.skipped) {
+    if (out.skipped) {
       set.add(vid)
       continue
     }
-    console.log('ingested', vid, data.contentId)
+    console.log('ingested', vid, out.contentId)
     set.add(vid)
     ingested++
   }
