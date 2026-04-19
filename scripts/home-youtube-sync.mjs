@@ -20,6 +20,9 @@
  *   CHANNEL_SYNC_MIN_DURATION_SECONDS (default 480 = 8 minutes)
  *
  * State file: scripts/.home-sync-state.json (gitignored)
+ *
+ * Ingest modes (pick one in .env.local): LOCAL_NEXT_INGEST_URL = same as admin paste on local Next;
+ * or FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL; or INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET.
  */
 import fs from 'fs'
 import path from 'path'
@@ -63,13 +66,18 @@ const SITE_BASE = (
   process.env.SITE_URL ||
   ''
 ).replace(/\/$/, '')
+const LOCAL_NEXT = process.env.LOCAL_NEXT_INGEST_URL?.replace(/\/$/, '')
 const MAX_PER_RUN = Number(process.env.HOME_SYNC_MAX_INGESTS ?? 15)
 const PER_CHANNEL = Number(process.env.HOME_SYNC_PER_CHANNEL ?? 25)
 const MIN_DURATION_SEC = Number(process.env.CHANNEL_SYNC_MIN_DURATION_SECONDS ?? 480)
 
-/** Prefer Firebase direct ingest when configured (no webhook). */
-const useFirebase = !!(SA_JSON && SITE_BASE)
-const useWebhook = !!(WEBHOOK && WH_SECRET) && !useFirebase
+const INGEST_MODE = LOCAL_NEXT
+  ? 'localNext'
+  : SA_JSON && SITE_BASE
+    ? 'firebase'
+    : WEBHOOK && WH_SECRET
+      ? 'webhook'
+      : null
 
 if (!YT_KEY) {
   console.error('Missing YouTube key: set YOUTUBE_API_KEY or YOUTUBE_DATA_API_KEY in .env.local')
@@ -77,12 +85,11 @@ if (!YT_KEY) {
   process.exit(1)
 }
 
-if (!useFirebase && !useWebhook) {
-  console.error('Add one ingest setup to .env.local:')
-  console.error(
-    '  Option A (no webhook): FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL (or PROCESS_CONTENT_BASE_URL)'
-  )
-  console.error('  Option B: INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET')
+if (!INGEST_MODE) {
+  console.error('Add one ingest setup to .env.local, for example:')
+  console.error('  LOCAL_NEXT_INGEST_URL=http://localhost:3001   (recommended; run `npm run dev` first)')
+  console.error('  — or FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL')
+  console.error('  — or INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET')
   process.exit(1)
 }
 
@@ -175,11 +182,30 @@ async function firebaseVideoExists(db, videoId) {
   return !q.empty
 }
 
+/** Same request body as the admin “paste YouTube URLs” flow. */
+async function ingestViaLocalNext(youtubeUrl) {
+  const r = await fetch(`${LOCAL_NEXT}/api/youtube/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ youtubeUrl }),
+  })
+  const raw = await r.text()
+  let data = {}
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    return { httpError: true, status: r.status, message: raw.slice(0, 200) }
+  }
+  if (r.status === 422) return { noTranscript: true, message: data.error || 'no transcript' }
+  if (!r.ok) return { httpError: true, status: r.status, message: data.error || raw.slice(0, 200) }
+  return { contentId: data.contentId }
+}
+
 /**
  * @returns {{ contentId: string } | { skipped: true }}
  */
 async function pushIngest(youtubeUrl, transcript, videoId) {
-  if (useFirebase) {
+  if (INGEST_MODE === 'firebase') {
     const db = await getFirestoreDb()
     if (await firebaseVideoExists(db, videoId)) return { skipped: true }
     const oembed = await fetch(
@@ -209,18 +235,22 @@ async function pushIngest(youtubeUrl, transcript, videoId) {
     return { contentId: ref.id }
   }
 
-  const r = await fetch(`${WEBHOOK}/api/youtube/ingest-webhook`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${WH_SECRET}`,
-    },
-    body: JSON.stringify({ youtubeUrl, transcript }),
-  })
-  const data = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(data.error || `webhook ${r.status}`)
-  if (data.skipped) return { skipped: true }
-  return { contentId: data.contentId }
+  if (INGEST_MODE === 'webhook') {
+    const r = await fetch(`${WEBHOOK}/api/youtube/ingest-webhook`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${WH_SECRET}`,
+      },
+      body: JSON.stringify({ youtubeUrl, transcript }),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(data.error || `webhook ${r.status}`)
+    if (data.skipped) return { skipped: true }
+    return { contentId: data.contentId }
+  }
+
+  throw new Error('pushIngest: unsupported mode')
 }
 
 async function searchChannel(cid, publishedAfterIso) {
@@ -257,16 +287,24 @@ async function searchChannel(cid, publishedAfterIso) {
 }
 
 async function main() {
-  console.log(
-    useFirebase ? `Ingest: Firebase → ${SITE_BASE}/api/process-content` : `Ingest: webhook → ${WEBHOOK}`
-  )
+  if (INGEST_MODE === 'localNext') {
+    console.log(`Ingest: same as local admin → POST ${LOCAL_NEXT}/api/youtube/ingest (start Next on that host first)`)
+  } else if (INGEST_MODE === 'firebase') {
+    console.log(`Ingest: Firebase → ${SITE_BASE}/api/process-content`)
+  } else {
+    console.log(`Ingest: webhook → ${WEBHOOK}`)
+  }
+
   const state = loadState()
   const publishedAfterIso = publishedAfterFromState(state)
   const publishedAfterMs = new Date(publishedAfterIso).getTime()
   const set = new Set(state.seenVideoIds || [])
   const channels = loadChannels()
 
-  const { YoutubeTranscript } = await import('youtube-transcript')
+  let YoutubeTranscript = null
+  if (INGEST_MODE !== 'localNext') {
+    ;({ YoutubeTranscript } = await import('youtube-transcript'))
+  }
 
   const candidates = []
   for (const ch of channels) {
@@ -295,6 +333,7 @@ async function main() {
     passedMinDuration: durationOk.size,
     transcriptFetchFail: 0,
     transcriptTooShort: 0,
+    ingestNoTranscript422: 0,
     alreadyInFirestore: 0,
     ingestHttpFail: 0,
     ingested: 0,
@@ -304,6 +343,26 @@ async function main() {
     if (!durationOk.has(vid)) continue
     if (stats.ingested >= MAX_PER_RUN) break
     if (set.has(vid)) continue
+
+    const youtubeUrl = `https://www.youtube.com/watch?v=${vid}`
+
+    if (INGEST_MODE === 'localNext') {
+      const res = await ingestViaLocalNext(youtubeUrl)
+      if (res.noTranscript) {
+        stats.ingestNoTranscript422++
+        console.warn('ingest 422 (no transcript)', vid, res.message)
+        continue
+      }
+      if (res.httpError) {
+        stats.ingestHttpFail++
+        console.error('ingest failed', vid, res.status, res.message)
+        continue
+      }
+      console.log('ingested', vid, res.contentId)
+      set.add(vid)
+      stats.ingested++
+      continue
+    }
 
     let lines
     try {
@@ -319,7 +378,6 @@ async function main() {
       continue
     }
 
-    const youtubeUrl = `https://www.youtube.com/watch?v=${vid}`
     let out
     try {
       out = await pushIngest(youtubeUrl, text, vid)
