@@ -10,9 +10,10 @@
  *   YOUTUBE_API_KEY or YOUTUBE_DATA_API_KEY — YouTube Data API v3
  *
  * Then **one** of these ingest modes:
- *   A) No webhook — set FIREBASE_SERVICE_ACCOUNT_JSON (same JSON string as on Vercel) and
- *      NEXT_PUBLIC_BASE_URL (https://your-app.vercel.app). Writes `content` locally via Admin SDK
- *      and POSTs to your site’s /api/process-content.
+ *   A) No webhook — FIREBASE_SERVICE_ACCOUNT_JSON + a base URL for POST /api/process-content:
+ *      NEXT_PUBLIC_BASE_URL (e.g. https://your-app.vercel.app), or PROCESS_CONTENT_BASE_URL
+ *      (e.g. http://localhost:3000 if `npm run dev` is running and you want OpenAI on your PC).
+ *      Writes `content` with Admin SDK from this machine, then POSTs process-content to that URL.
  *   B) Webhook — INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET (same secret as Vercel INGEST_WEBHOOK_SECRET).
  *
  * Optional: HOME_SYNC_MAX_INGESTS (default 15), HOME_SYNC_PER_CHANNEL (default 25),
@@ -56,7 +57,12 @@ const YT_KEY = process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY
 const WEBHOOK = process.env.INGEST_WEBHOOK_URL?.replace(/\/$/, '')
 const WH_SECRET = process.env.INGEST_WEBHOOK_SECRET
 const SA_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-const SITE_BASE = (process.env.NEXT_PUBLIC_BASE_URL || process.env.SITE_URL || '').replace(/\/$/, '')
+const SITE_BASE = (
+  process.env.PROCESS_CONTENT_BASE_URL ||
+  process.env.NEXT_PUBLIC_BASE_URL ||
+  process.env.SITE_URL ||
+  ''
+).replace(/\/$/, '')
 const MAX_PER_RUN = Number(process.env.HOME_SYNC_MAX_INGESTS ?? 15)
 const PER_CHANNEL = Number(process.env.HOME_SYNC_PER_CHANNEL ?? 25)
 const MIN_DURATION_SEC = Number(process.env.CHANNEL_SYNC_MIN_DURATION_SECONDS ?? 480)
@@ -73,7 +79,9 @@ if (!YT_KEY) {
 
 if (!useFirebase && !useWebhook) {
   console.error('Add one ingest setup to .env.local:')
-  console.error('  Option A (no webhook): FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL')
+  console.error(
+    '  Option A (no webhook): FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL (or PROCESS_CONTENT_BASE_URL)'
+  )
   console.error('  Option B: INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET')
   process.exit(1)
 }
@@ -282,44 +290,63 @@ async function main() {
   }
 
   const durationOk = await videoIdsMeetingMinDuration(uniq.map((u) => u.vid))
+  const stats = {
+    uniqueCandidates: uniq.length,
+    passedMinDuration: durationOk.size,
+    transcriptFetchFail: 0,
+    transcriptTooShort: 0,
+    alreadyInFirestore: 0,
+    ingestHttpFail: 0,
+    ingested: 0,
+  }
 
-  let ingested = 0
   for (const { vid } of uniq) {
     if (!durationOk.has(vid)) continue
-    if (ingested >= MAX_PER_RUN) break
+    if (stats.ingested >= MAX_PER_RUN) break
     if (set.has(vid)) continue
 
     let lines
     try {
       lines = await YoutubeTranscript.fetchTranscript(vid)
     } catch (e) {
+      stats.transcriptFetchFail++
       console.warn('transcript skip', vid, e?.message || e)
       continue
     }
     const text = lines.map((l) => l.text).join(' ').replace(/\s+/g, ' ').trim()
-    if (text.length < 40) continue
+    if (text.length < 40) {
+      stats.transcriptTooShort++
+      continue
+    }
 
     const youtubeUrl = `https://www.youtube.com/watch?v=${vid}`
     let out
     try {
       out = await pushIngest(youtubeUrl, text, vid)
     } catch (e) {
+      stats.ingestHttpFail++
       console.error('ingest failed', vid, e?.message || e)
       continue
     }
     if (out.skipped) {
+      stats.alreadyInFirestore++
       set.add(vid)
       continue
     }
     console.log('ingested', vid, out.contentId)
     set.add(vid)
-    ingested++
+    stats.ingested++
   }
 
   state.seenVideoIds = [...set]
   state.lastRunIso = new Date().toISOString()
   saveState(state)
-  console.log('done', { ingested, channels: channels.length, stateFile: statePath })
+  console.log('done', {
+    ...stats,
+    channels: channels.length,
+    publishedAfterIso,
+    stateFile: statePath,
+  })
 }
 
 main().catch((e) => {
