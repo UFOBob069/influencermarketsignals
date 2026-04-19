@@ -1,6 +1,21 @@
 import fetch from 'node-fetch'
 import { parseStringPromise } from 'xml2js'
 
+/** YouTube is stricter with datacenter IPs; bare Node UA often gets player responses without captions. */
+const YOUTUBE_FETCH_HEADERS: Record<string, string> = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Accept-Language': 'en-US,en;q=0.9',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+}
+
+const INNERTUBE_CLIENTS: ReadonlyArray<{ clientName: string; clientVersion: string }> = [
+  { clientName: 'ANDROID', clientVersion: '20.10.38' },
+  { clientName: 'ANDROID', clientVersion: '19.08.35' },
+  { clientName: 'WEB', clientVersion: '2.20250122.00.00' },
+  { clientName: 'MWEB', clientVersion: '2.20250122.00.00' },
+]
+
 export function extractVideoId(input: string): string | null {
   if (!input) return null
   if (/^[\w-]{11}$/.test(input)) return input
@@ -47,7 +62,7 @@ interface ParsedTranscript {
 
 async function getInnertubeApiKey(videoUrl: string): Promise<string | null> {
   try {
-    const response = await fetch(videoUrl)
+    const response = await fetch(videoUrl, { headers: YOUTUBE_FETCH_HEADERS })
     const html = await response.text()
     const apiKeyMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/)
     return apiKeyMatch ? apiKeyMatch[1] : null
@@ -57,48 +72,75 @@ async function getInnertubeApiKey(videoUrl: string): Promise<string | null> {
   }
 }
 
-async function getPlayerResponse(videoId: string, apiKey: string): Promise<PlayerResponse> {
+async function getPlayerResponse(
+  videoId: string,
+  apiKey: string,
+  client: { clientName: string; clientVersion: string }
+): Promise<PlayerResponse> {
   const endpoint = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`
-  
+
   const body = {
     context: {
-      client: {
-        clientName: "ANDROID",
-        clientVersion: "20.10.38",
-      },
+      client,
     },
-    videoId: videoId,
+    videoId,
   }
 
   const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...YOUTUBE_FETCH_HEADERS,
+      Origin: 'https://www.youtube.com',
+      Referer: `https://www.youtube.com/watch?v=${videoId}`,
+    },
     body: JSON.stringify(body),
   })
 
-  return await response.json() as PlayerResponse
+  return (await response.json()) as PlayerResponse
 }
 
-function extractCaptionTrackUrl(playerResponse: PlayerResponse, lang: string = "en"): string | null {
+function pickCaptionTrack(tracks: CaptionTrack[], lang: string): CaptionTrack | null {
+  const exact = tracks.find((t) => t.languageCode === lang)
+  if (exact) return exact
+
+  const lower = lang.toLowerCase()
+  const prefix = lower.split('-')[0] || lower
+  const prefixMatch = tracks.find(
+    (t) =>
+      t.languageCode.toLowerCase() === lower ||
+      t.languageCode.toLowerCase().startsWith(prefix + '-') ||
+      t.languageCode.toLowerCase() === prefix
+  )
+  if (prefixMatch) return prefixMatch
+
+  if (prefix === 'en') {
+    const anyEn = tracks.find((t) => t.languageCode.toLowerCase().startsWith('en'))
+    if (anyEn) return anyEn
+  }
+
+  return tracks[0] ?? null
+}
+
+function extractCaptionTrackUrl(playerResponse: PlayerResponse, lang: string = 'en'): string | null {
   const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks
-  
-  if (!tracks) {
+
+  if (!tracks?.length) {
     console.log('No caption tracks found in player response')
     return null
   }
-  
-  const track = tracks.find((t: CaptionTrack) => t.languageCode === lang)
+
+  const track = pickCaptionTrack(tracks, lang)
   if (!track) {
-    console.log(`No captions for language: ${lang}`)
+    console.log(`No usable caption track for preference: ${lang}`)
     return null
   }
-  
-  // Remove "&fmt=srv3" if present
-  return track.baseUrl.replace(/&fmt=\w+$/, "")
+
+  return track.baseUrl.replace(/&fmt=\w+$/, '')
 }
 
 async function fetchAndParseCaptions(baseUrl: string): Promise<Array<{ caption: string, startTime: number, endTime: number }>> {
-  const response = await fetch(baseUrl)
+  const response = await fetch(baseUrl, { headers: YOUTUBE_FETCH_HEADERS })
   const xml = await response.text()
   const parsed = await parseStringPromise(xml) as ParsedTranscript
   
@@ -115,29 +157,29 @@ async function fetchAndParseCaptions(baseUrl: string): Promise<Array<{ caption: 
  * @param language - Language code, e.g., "en", "hi"
  * @returns Promise<Array<{ caption: string, startTime: number, endTime: number }>>
  */
-async function getYoutubeTranscriptInnertube(videoId: string, language: string = "en"): Promise<Array<{ caption: string, startTime: number, endTime: number }> | null> {
+async function getYoutubeTranscriptInnertube(
+  videoId: string,
+  language: string = 'en'
+): Promise<Array<{ caption: string; startTime: number; endTime: number }> | null> {
   try {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`
-    
-    // Step 1: Get INNERTUBE_API_KEY
+
     const apiKey = await getInnertubeApiKey(videoUrl)
     if (!apiKey) {
-      throw new Error("INNERTUBE_API_KEY not found.")
+      console.warn('Innertube: INNERTUBE_API_KEY not found in watch page HTML')
+      return null
     }
-    
-    // Step 2: Get player response
-    const playerData = await getPlayerResponse(videoId, apiKey)
-    
-    // Step 3: Extract caption track URL
-    const baseUrl = extractCaptionTrackUrl(playerData, language)
-    if (!baseUrl) {
-      throw new Error(`No captions for language: ${language}`)
+
+    for (const client of INNERTUBE_CLIENTS) {
+      const playerData = await getPlayerResponse(videoId, apiKey, client)
+      const baseUrl = extractCaptionTrackUrl(playerData, language)
+      if (!baseUrl) continue
+
+      const captions = await fetchAndParseCaptions(baseUrl)
+      if (captions?.length) return captions
     }
-    
-    // Step 4: Fetch and parse captions
-    const captions = await fetchAndParseCaptions(baseUrl)
-    return captions
-    
+
+    return null
   } catch (error) {
     console.error('Innertube API failed:', error)
     return null
