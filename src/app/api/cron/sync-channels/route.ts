@@ -1,6 +1,7 @@
 /**
- * Daily channel sync (Vercel Cron). Schedule in `vercel.json` is `0 7 * * *` (07:00 UTC),
- * which is 01:00 in Chicago standard time (CST) and 02:00 during daylight time (CDT).
+ * Daily channel sync (Vercel Cron). Schedule in `vercel.json` is `0 4 * * *` (04:00 UTC),
+ * which is 22:00 (10 PM) Central **standard** time (CST, UTC−6). During daylight time (CDT, UTC−5)
+ * the same UTC moment is 23:00 (11 PM) Central — Vercel crons are UTC-only; adjust seasonally if needed.
  *
  * Env:
  * - YOUTUBE_API_KEY (or YOUTUBE_DATA_API_KEY): YouTube Data API v3
