@@ -13,7 +13,7 @@
     "@vercel/analytics": "^1.5.0",
     "firebase": "^11.7.1",
     "firebase-admin": "^13.4.0",
-    "next": "15.3.2",
+    "next": "15.3.8",
     "node-fetch": "^3.3.2",
     "openai": "^4.98.0",
     "react": "^19.0.0",
@@ -34,7 +34,7 @@
     "autoprefixer": "^10.4.19",
     "concurrently": "^8.2.2",
     "eslint": "^9",
-    "eslint-config-next": "15.3.2",
+    "eslint-config-next": "15.3.8",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
