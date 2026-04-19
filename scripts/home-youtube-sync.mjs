@@ -10,7 +10,8 @@
  *   YOUTUBE_API_KEY
  *   INGEST_WEBHOOK_URL   = https://YOUR-APP.vercel.app   (no trailing slash ok)
  *   INGEST_WEBHOOK_SECRET = same value as on Vercel (INGEST_WEBHOOK_SECRET)
- * Optional: HOME_SYNC_MAX_INGESTS (default 15), HOME_SYNC_PER_CHANNEL (default 5)
+ * Optional: HOME_SYNC_MAX_INGESTS (default 15), HOME_SYNC_PER_CHANNEL (default 25),
+ *   CHANNEL_SYNC_MIN_DURATION_SECONDS (default 480 = 8 minutes)
  *
  * State file: scripts/.home-sync-state.json (gitignored)
  */
@@ -43,7 +44,8 @@ const YT_KEY = process.env.YOUTUBE_API_KEY
 const WEBHOOK = process.env.INGEST_WEBHOOK_URL?.replace(/\/$/, '')
 const WH_SECRET = process.env.INGEST_WEBHOOK_SECRET
 const MAX_PER_RUN = Number(process.env.HOME_SYNC_MAX_INGESTS ?? 15)
-const PER_CHANNEL = Number(process.env.HOME_SYNC_PER_CHANNEL ?? 5)
+const PER_CHANNEL = Number(process.env.HOME_SYNC_PER_CHANNEL ?? 25)
+const MIN_DURATION_SEC = Number(process.env.CHANNEL_SYNC_MIN_DURATION_SECONDS ?? 480)
 
 if (!YT_KEY || !WEBHOOK || !WH_SECRET) {
   console.error('Set YOUTUBE_API_KEY, INGEST_WEBHOOK_URL, and INGEST_WEBHOOK_SECRET')
@@ -66,14 +68,41 @@ function saveState(s) {
 }
 
 function publishedAfterFromState(state) {
-  if (!state.lastRunIso) {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - 90)
-    return d.toISOString()
+  const now = Date.now()
+  const rolling24hMs = now - 24 * 60 * 60 * 1000
+  const rollingIso = new Date(rolling24hMs).toISOString()
+  if (!state.lastRunIso) return rollingIso
+  const lastMs = new Date(state.lastRunIso).getTime()
+  if (!Number.isFinite(lastMs)) return rollingIso
+  return new Date(Math.max(lastMs, rolling24hMs)).toISOString()
+}
+
+function parseIso8601DurationSeconds(iso) {
+  const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/)
+  if (!m) return 0
+  const h = parseInt(m[1] || '0', 10)
+  const min = parseInt(m[2] || '0', 10)
+  const s = parseInt(m[3] || '0', 10)
+  return h * 3600 + min * 60 + s
+}
+
+async function videoIdsMeetingMinDuration(ids) {
+  const ok = new Set()
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50)
+    const url = new URL('https://www.googleapis.com/youtube/v3/videos')
+    url.searchParams.set('part', 'contentDetails')
+    url.searchParams.set('id', chunk.join(','))
+    url.searchParams.set('key', YT_KEY)
+    const data = await fetch(url).then((r) => r.json())
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error))
+    for (const v of data.items || []) {
+      const d = v.contentDetails?.duration
+      if (!d) continue
+      if (parseIso8601DurationSeconds(d) >= MIN_DURATION_SEC) ok.add(v.id)
+    }
   }
-  const t = new Date(state.lastRunIso)
-  t.setUTCMinutes(t.getUTCMinutes() - 10)
-  return t.toISOString()
+  return ok
 }
 
 function loadChannels() {
@@ -130,6 +159,7 @@ async function searchChannel(cid, publishedAfterIso) {
 async function main() {
   const state = loadState()
   const publishedAfterIso = publishedAfterFromState(state)
+  const publishedAfterMs = new Date(publishedAfterIso).getTime()
   const set = new Set(state.seenVideoIds || [])
   const channels = loadChannels()
 
@@ -138,9 +168,11 @@ async function main() {
   const candidates = []
   for (const ch of channels) {
     const items = await searchChannel(ch.channel_id, publishedAfterIso)
-    for (const { vid, title } of items) {
+    for (const { vid, title, publishedAt } of items) {
       const t = (title || '').toLowerCase()
       if (t.includes('shorts') || /\bshort\b/.test(t)) continue
+      const pa = publishedAt ? new Date(publishedAt).getTime() : 0
+      if (!Number.isFinite(pa) || pa < publishedAfterMs) continue
       candidates.push({ vid })
     }
     await new Promise((r) => setTimeout(r, 200))
@@ -154,8 +186,11 @@ async function main() {
     uniq.push(c)
   }
 
+  const durationOk = await videoIdsMeetingMinDuration(uniq.map((u) => u.vid))
+
   let ingested = 0
   for (const { vid } of uniq) {
+    if (!durationOk.has(vid)) continue
     if (ingested >= MAX_PER_RUN) break
     if (set.has(vid)) continue
 

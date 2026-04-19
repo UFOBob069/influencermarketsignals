@@ -1,7 +1,26 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-export const MIN_VIDEO_DURATION_SECONDS = 60
+/** Default 8 minutes; override with CHANNEL_SYNC_MIN_DURATION_SECONDS */
+export function getMinVideoDurationSeconds(): number {
+  const n = parseInt(process.env.CHANNEL_SYNC_MIN_DURATION_SECONDS || '480', 10)
+  return Number.isFinite(n) && n > 0 ? n : 480
+}
+
+/**
+ * YouTube `publishedAfter` lower bound: never earlier than rolling 24h, and never earlier than
+ * last successful cron (`lastRunIso`) so each run only considers the window since last job
+ * (capped at 24h if a run was missed for a long time).
+ */
+export function publishedAfterFromState(lastRunIso: string | null): string {
+  const now = Date.now()
+  const rolling24hMs = now - 24 * 60 * 60 * 1000
+  const rollingIso = new Date(rolling24hMs).toISOString()
+  if (!lastRunIso) return rollingIso
+  const lastMs = new Date(lastRunIso).getTime()
+  if (!Number.isFinite(lastMs)) return rollingIso
+  return new Date(Math.max(lastMs, rolling24hMs)).toISOString()
+}
 
 export interface ChannelRow {
   name: string
@@ -140,7 +159,7 @@ async function youtubeVideosDetails(apiKey: string, videoIds: string[]) {
 export async function fetchLatestForChannel(
   channelId: string,
   apiKey: string,
-  opts: { maxResults: number; publishedAfterIso?: string | null }
+  opts: { maxResults: number; publishedAfterIso: string }
 ): Promise<PolledVideo[]> {
   const { maxResults, publishedAfterIso } = opts
 
@@ -149,8 +168,8 @@ export async function fetchLatestForChannel(
     order: 'date',
     maxResults,
     type: 'video',
+    publishedAfter: publishedAfterIso,
   }
-  if (publishedAfterIso) baseParams.publishedAfter = publishedAfterIso
 
   const regular = await youtubeSearch(apiKey, baseParams)
   let live: SearchItem[] = []
@@ -188,14 +207,12 @@ export async function fetchLatestForChannel(
     if (title.includes('shorts') || /\bshort\b/.test(title)) continue
 
     const cd = lookup.get(vid)
-    let durationStr = 'Unknown'
-    let totalSeconds = 0
-    if (cd?.duration) {
-      const parsed = parseIso8601Duration(cd.duration)
-      totalSeconds = parsed.total
-      durationStr = parsed.display
-      if (totalSeconds < MIN_VIDEO_DURATION_SECONDS) continue
-    }
+    if (!cd?.duration) continue
+
+    const parsed = parseIso8601Duration(cd.duration)
+    const totalSeconds = parsed.total
+    const durationStr = parsed.display
+    if (totalSeconds < getMinVideoDurationSeconds()) continue
 
     out.push({
       video_id: vid,
@@ -210,16 +227,4 @@ export async function fetchLatestForChannel(
     })
   }
   return out
-}
-
-export function publishedAfterFromState(lastRunIso: string | null, isFirstRun: boolean): string | null {
-  if (isFirstRun) {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - 90)
-    return d.toISOString()
-  }
-  if (!lastRunIso) return null
-  const t = new Date(lastRunIso)
-  t.setUTCMinutes(t.getUTCMinutes() - 10)
-  return t.toISOString()
 }

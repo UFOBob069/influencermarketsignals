@@ -7,8 +7,11 @@
  * - FIREBASE_SERVICE_ACCOUNT_JSON: stringified service account (required; bypasses Firestore rules)
  * - CRON_SECRET: required in production; Vercel sends `Authorization: Bearer <CRON_SECRET>` on cron
  * - NEXT_PUBLIC_BASE_URL or VERCEL_URL: base URL for calling `/api/process-content`
- * - CHANNEL_SYNC_MAX_PER_CHANNEL (default 5), CHANNEL_SYNC_INITIAL_PER_CHANNEL (default 20),
- *   CHANNEL_SYNC_MAX_INGESTS_PER_RUN (default 20)
+ * - CHANNEL_SYNC_MAX_PER_CHANNEL (default 25): max search results per channel per run
+ * - CHANNEL_SYNC_MAX_INGESTS_PER_RUN (default 20)
+ * - CHANNEL_SYNC_MIN_DURATION_SECONDS (default 480): minimum length (8 minutes)
+ *
+ * Time window: videos with publishedAt >= max(lastCron, now-24h). Duration & API filter applied in youtubeChannelPoll.
  *
  * Channel list: repo-root `channels.csv` (falls back to `channels.example.csv`).
  */
@@ -29,8 +32,7 @@ import { ingestYoutubeWatchUrl } from '@/lib/youtubeIngestCore'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const MAX_VIDEOS_PER_CHANNEL = parseInt(process.env.CHANNEL_SYNC_MAX_PER_CHANNEL || '5', 10)
-const INITIAL_VIDEOS_PER_CHANNEL = parseInt(process.env.CHANNEL_SYNC_INITIAL_PER_CHANNEL || '20', 10)
+const MAX_VIDEOS_PER_CHANNEL = parseInt(process.env.CHANNEL_SYNC_MAX_PER_CHANNEL || '25', 10)
 const MAX_INGESTS_PER_RUN = parseInt(process.env.CHANNEL_SYNC_MAX_INGESTS_PER_RUN || '20', 10)
 
 function cronAuthorized(req: NextRequest): boolean {
@@ -78,9 +80,9 @@ async function runSync(req: NextRequest) {
   }
 
   const state = await getChannelSyncState()
-  const isFirstRun = !state.lastRunIso
-  const publishedAfterIso = publishedAfterFromState(state.lastRunIso, isFirstRun)
-  const perChannel = isFirstRun ? INITIAL_VIDEOS_PER_CHANNEL : MAX_VIDEOS_PER_CHANNEL
+  const publishedAfterIso = publishedAfterFromState(state.lastRunIso)
+  const perChannel = MAX_VIDEOS_PER_CHANNEL
+  const publishedAfterMs = new Date(publishedAfterIso).getTime()
 
   const baseUrl = resolveBaseUrl(req)
 
@@ -97,6 +99,8 @@ async function runSync(req: NextRequest) {
       })
       for (const it of items) {
         if (seen.has(it.video_id)) continue
+        const pa = it.published_at ? new Date(it.published_at).getTime() : 0
+        if (!Number.isFinite(pa) || pa < publishedAfterMs) continue
         seen.add(it.video_id)
         candidates.push({
           url: it.url,
@@ -143,6 +147,7 @@ async function runSync(req: NextRequest) {
     candidates: candidates.length,
     ingested,
     maxIngestsPerRun: MAX_INGESTS_PER_RUN,
+    publishedAfterIso,
     errors: errors.slice(0, 30),
     skippedCount: skipped.length,
   })
