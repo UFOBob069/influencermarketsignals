@@ -23,6 +23,8 @@
  *
  * Ingest modes (pick one in .env.local): LOCAL_NEXT_INGEST_URL = same as admin paste on local Next;
  * or FIREBASE_SERVICE_ACCOUNT_JSON + NEXT_PUBLIC_BASE_URL; or INGEST_WEBHOOK_URL + INGEST_WEBHOOK_SECRET.
+ *
+ * Quota: HOME_SYNC_SEARCH_MODE=regular uses half the YouTube search quota (see script throwIfYtApiError).
  */
 import fs from 'fs'
 import path from 'path'
@@ -70,6 +72,8 @@ const LOCAL_NEXT = process.env.LOCAL_NEXT_INGEST_URL?.replace(/\/$/, '')
 const MAX_PER_RUN = Number(process.env.HOME_SYNC_MAX_INGESTS ?? 15)
 const PER_CHANNEL = Number(process.env.HOME_SYNC_PER_CHANNEL ?? 25)
 const MIN_DURATION_SEC = Number(process.env.CHANNEL_SYNC_MIN_DURATION_SECONDS ?? 480)
+/** `both` = normal uploads + completed live (2× search quota per channel). `regular` = uploads only (half the search cost). */
+const SEARCH_MODE = String(process.env.HOME_SYNC_SEARCH_MODE || 'both').toLowerCase()
 
 const INGEST_MODE = LOCAL_NEXT
   ? 'localNext'
@@ -127,6 +131,30 @@ function parseIso8601DurationSeconds(iso) {
   return h * 3600 + min * 60 + s
 }
 
+function ytPlainMessage(payload) {
+  const e = payload?.error
+  if (!e) return JSON.stringify(payload)
+  const m = String(e.message || '').replace(/<[^>]*>/g, '').trim()
+  return m || e.code || JSON.stringify(e)
+}
+
+function throwIfYtApiError(data, context) {
+  if (!data?.error) return
+  const e = data.error
+  const reason = e.errors?.[0]?.reason || ''
+  const msg = ytPlainMessage(data)
+  if (reason === 'quotaExceeded' || msg.toLowerCase().includes('quota')) {
+    throw new Error(
+      `YouTube Data API quota exceeded (${context}). search.list uses ~100 units per call; ` +
+        `this script uses ${SEARCH_MODE === 'regular' ? '1' : '2'} search(es) per channel × your channel count, ` +
+        `which can exceed the default 10,000 units/day.\n` +
+        `Options: wait for the daily reset, raise quota in Google Cloud Console → YouTube Data API v3 → Quotas, ` +
+        `or set HOME_SYNC_SEARCH_MODE=regular in .env.local (skips completed-live search; ~half the search quota).`
+    )
+  }
+  throw new Error(`${context}: ${msg}`)
+}
+
 async function videoIdsMeetingMinDuration(ids) {
   const ok = new Set()
   for (let i = 0; i < ids.length; i += 50) {
@@ -136,7 +164,7 @@ async function videoIdsMeetingMinDuration(ids) {
     url.searchParams.set('id', chunk.join(','))
     url.searchParams.set('key', YT_KEY)
     const data = await fetch(url).then((r) => r.json())
-    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error))
+    throwIfYtApiError(data, 'videos.list')
     for (const v of data.items || []) {
       const d = v.contentDetails?.duration
       if (!d) continue
@@ -269,9 +297,13 @@ async function searchChannel(cid, publishedAfterIso) {
     return p
   }
   const regular = await fetch(`${base}?${makeParams()}`).then((r) => r.json())
-  if (regular.error) throw new Error(regular.error.message || JSON.stringify(regular.error))
-  const live = await fetch(`${base}?${makeParams({ eventType: 'completed' })}`).then((r) => r.json())
-  const items = [...(regular.items || []), ...(live.items || [])]
+  throwIfYtApiError(regular, 'search.list (regular)')
+  let items = [...(regular.items || [])]
+  if (SEARCH_MODE !== 'regular') {
+    const live = await fetch(`${base}?${makeParams({ eventType: 'completed' })}`).then((r) => r.json())
+    throwIfYtApiError(live, 'search.list (completed live)')
+    items = [...items, ...(live.items || [])]
+  }
   const seen = new Set()
   const out = []
   for (const it of items) {
@@ -287,6 +319,7 @@ async function searchChannel(cid, publishedAfterIso) {
 }
 
 async function main() {
+  console.log(`YouTube search mode: ${SEARCH_MODE} (set HOME_SYNC_SEARCH_MODE=regular to save ~50% search quota)`)
   if (INGEST_MODE === 'localNext') {
     console.log(`Ingest: same as local admin → POST ${LOCAL_NEXT}/api/youtube/ingest (start Next on that host first)`)
   } else if (INGEST_MODE === 'firebase') {
